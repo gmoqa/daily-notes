@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+.github
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Development files
+*.md
+!README.md
+.vscode
+.idea
+*.log
+tmp/
+temp/
+
+# Build artifacts
+bin/
+*.exe
+*.test
+*.out
+main
+
+# Dependencies (will be downloaded during build)
+vendor/
+
+# Documentation
+docs/
+
+# CI/CD
+.circleci
+.travis.yml
+
+# Backups
+*.backup
+*.bak
+views/index.jet.backup
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules (if any)
+node_modules/

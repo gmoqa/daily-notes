@@ -1,0 +1,82 @@
+.PHONY: help build run dev test clean docker-build docker-run docker-stop deploy
+
+help: ## Show this help message
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Available targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+build: ## Build the application binary
+	@echo "Building application..."
+	@go build -o bin/dailynotes main.go
+	@echo "Build complete! Binary: ./bin/dailynotes"
+
+run: ## Run the application
+	@echo "Running application..."
+	@go run main.go
+
+dev: ## Run the application in development mode with hot reload
+	@echo "Starting development server..."
+	@air || go run main.go
+
+test: ## Run tests
+	@echo "Running tests..."
+	@go test -v ./...
+
+clean: ## Clean build artifacts
+	@echo "Cleaning..."
+	@rm -rf bin/
+	@rm -f dailynotes
+	@echo "Clean complete!"
+
+docker-build: ## Build Docker image
+	@echo "Building Docker image..."
+	@docker build -t dailynotes:latest .
+	@echo "Docker image built successfully!"
+
+docker-run: ## Run Docker container
+	@echo "Running Docker container..."
+	@docker-compose up -d
+	@echo "Container started! Visit http://localhost:3000"
+
+docker-stop: ## Stop Docker container
+	@echo "Stopping Docker container..."
+	@docker-compose down
+	@echo "Container stopped!"
+
+docker-logs: ## Show Docker container logs
+	@docker-compose logs -f
+
+# Production deployment targets
+prod-build: ## Build production binary
+	@echo "Building production binary..."
+	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags="-w -s" -o bin/dailynotes-linux main.go
+	@echo "Production build complete!"
+
+prod-deploy-vps: prod-build ## Deploy to VPS (requires configured SSH)
+	@echo "Deploying to production VPS..."
+	@echo "⚠️  Make sure you've configured your VPS details in the deploy script"
+	@./scripts/deploy-vps.sh
+
+# Utility targets
+fmt: ## Format Go code
+	@echo "Formatting code..."
+	@go fmt ./...
+
+lint: ## Lint Go code
+	@echo "Linting code..."
+	@golangci-lint run || echo "Install golangci-lint: https://golangci-lint.run/usage/install/"
+
+deps: ## Download dependencies
+	@echo "Downloading dependencies..."
+	@go mod download
+	@go mod tidy
+	@echo "Dependencies updated!"
+
+# Database/Storage maintenance
+backup-note: ## Backup all notes (manual trigger for testing)
+	@echo "Note: This app stores data in Google Drive - backups are handled by Google"
+
+security-check: ## Run security checks
+	@echo "Running security checks..."
+	@govulncheck ./... || echo "Install govulncheck: go install golang.org/x/vuln/cmd/govulncheck@latest"

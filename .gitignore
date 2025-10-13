@@ -1,0 +1,45 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+daily-notes
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Environment variables
+.env
+.env.production
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PWA - Keep icon source but not generated PNGs (generate during build)
+static/icons/*.png
+!static/icons/.gitkeep
+
+# Fiber auto-generated compressed files
+*.fiber.gz
+
+# Claude Code configuration
+.claude/
