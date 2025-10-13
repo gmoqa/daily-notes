@@ -10,8 +10,14 @@ RUN apk add --no-cache git
 COPY go.mod go.sum ./
 RUN go mod download
 
+# Install templ CLI
+RUN go install github.com/a-h/templ/cmd/templ@latest
+
 # Copy source code
 COPY . .
+
+# Generate Go files from templ templates
+RUN templ generate
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
