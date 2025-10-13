@@ -97,9 +97,10 @@ func (s *Service) GetConfig() (*Config, error) {
 		defaultConfig := &Config{
 			Contexts: []models.Context{},
 			Settings: models.UserSettings{
-				Theme:     "dark",
-				WeekStart: 0,
-				Timezone:  "UTC",
+				Theme:      "dark",
+				WeekStart:  0,
+				Timezone:   "UTC",
+				DateFormat: "DD-MM-YY",
 			},
 		}
 		if err := s.SaveConfig(defaultConfig); err != nil {

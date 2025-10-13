@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="google-client-id" content="{{ GoogleClientID }}">
-    <title>dailynotes.dev - Daily work notes in your Drive</title>
+    <title>dailynotes</title>
     <meta name="description" content="Minimalist offline-first PWA for daily work notes. Organize by context, sync with Google Drive.">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#485fc7" media="(prefers-color-scheme: light)">
@@ -150,7 +150,7 @@
     <section id="app-section" role="main" aria-label="Application">
         <!-- Mobile Navigation -->
         <nav class="mobile-nav" aria-label="Mobile navigation">
-            <div class="mobile-nav-actions">
+            <div class="mobile-nav-actions" id="mobile-context-selector">
                 <div class="field" style="margin: 0; flex: 1;">
                     <div class="control context-select-wrapper">
                         <div class="context-color-indicator" id="mobile-context-color-indicator" role="presentation" aria-hidden="true"></div>
@@ -159,7 +159,7 @@
                         </select>
                     </div>
                 </div>
-                <button onclick="showNewContextModal()" class="button is-primary is-small" style="color: white; white-space: nowrap;" title="New context">
+                <button onclick="showNewContextModal()" class="button is-primary is-small" style="color: white; white-space: nowrap;" title="New context" id="mobile-new-context-btn">
                     <span class="icon is-small">
                         <span class="material-symbols-outlined">add</span>
                     </span>
@@ -201,7 +201,7 @@
 
                 <!-- Actual Content -->
                 <div class="app-content">
-                    <div class="p-4">
+                    <div class="p-4" id="desktop-context-selector">
                         <div class="field">
                             <label for="context-select" class="sr-only">Select context</label>
                             <div class="control context-select-wrapper">
@@ -249,7 +249,10 @@
                     <div class="app-content">
                         <div class="controls">
                             <label for="date-picker" class="sr-only">Select date</label>
-                            <input type="date" id="date-picker" class="input" aria-label="Select date for note" />
+                            <div style="position: relative; display: inline-block; width: 100%;">
+                                <input type="date" id="date-picker" class="input" aria-label="Select date for note" style="color: transparent;" />
+                                <div id="date-picker-display" style="position: absolute; top: 50%; left: 12px; transform: translateY(-50%); pointer-events: none; color: var(--bulma-input-color); font-size: 1rem;"></div>
+                            </div>
                         </div>
                         <div class="editor-wrapper">
                             <label for="note-editor" class="sr-only">Note content</label>
@@ -338,8 +341,8 @@
                         <div class="dropdown-menu is-fullwidth" id="user-dropdown-menu" role="menu">
                             <div class="dropdown-content">
                                 <a class="dropdown-item" id="settings-menu-item">
-                                    <span class="icon-text">
-                                        <span class="icon is-small">
+                                    <span class="icon-text" style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <span class="icon is-small" style="margin: 0;">
                                             <span class="material-symbols-outlined" style="font-size: 16px;">settings</span>
                                         </span>
                                         <span>Settings</span>
@@ -347,8 +350,8 @@
                                 </a>
                                 <hr class="dropdown-divider">
                                 <a class="dropdown-item" id="signout-menu-item">
-                                    <span class="icon-text">
-                                        <span class="icon is-small">
+                                    <span class="icon-text" style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <span class="icon is-small" style="margin: 0;">
                                             <span class="material-symbols-outlined" style="font-size: 16px;">logout</span>
                                         </span>
                                         <span>Logout</span>
@@ -487,14 +490,50 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="field is-horizontal">
+                    <div class="field-label is-small">
+                        <label class="label">Date Format</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <div class="select is-small is-fullwidth">
+                                    <select id="date-format-select">
+                                        <option value="DD-MM-YY">DD-MM-YY (24-10-25)</option>
+                                        <option value="MM-DD-YY">MM-DD-YY (10-24-25)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field is-horizontal">
+                    <div class="field-label is-small">
+                        <label class="label">Unique Context Mode</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <label class="switch">
+                                    <input type="checkbox" id="unique-context-mode-switch">
+                                    <span class="slider round"></span>
+                                </label>
+                                <p class="help is-size-7" style="margin-top: 0.5rem;">Hide context selector and use your first context automatically</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
-            <footer class="modal-card-foot is-flex is-justify-content-flex-end" style="gap: 0.75rem;">
-                <button onclick="closeSettingsModal()" class="button is-small">Cancel</button>
-                <button onclick="saveSettings()" class="button is-small is-primary">
-                    <span class="icon is-small">
+            <footer class="modal-card-foot is-flex is-justify-content-flex-end" style="gap: 0.75rem; padding: 1rem 1.5rem;">
+                <button onclick="closeSettingsModal()" class="button is-small" id="settings-cancel-btn">Cancel</button>
+                <button onclick="saveSettings()" class="button is-small is-primary" id="settings-save-btn" style="color: white;">
+                    <span class="icon is-small" id="settings-save-icon">
                         <span class="material-symbols-outlined" style="font-size: 16px;">check</span>
                     </span>
-                    <span>Save</span>
+                    <span class="spinner" id="settings-save-spinner" style="display: none;"></span>
+                    <span id="settings-save-text">Save</span>
                 </button>
             </footer>
         </div>

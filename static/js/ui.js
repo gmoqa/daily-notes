@@ -260,9 +260,18 @@ class UIManager {
         state.subscribe('selectedDate', (newDate) => {
             if (this.elements.datePicker) {
                 this.elements.datePicker.value = newDate;
+                this.updateDatePickerDisplay(newDate);
             }
             this.renderNotesList(); // Update active state
             calendar.render();
+        });
+
+        // Update date picker display when date format changes
+        state.subscribe('userSettings', () => {
+            const selectedDate = state.get('selectedDate');
+            if (selectedDate) {
+                this.updateDatePickerDisplay(selectedDate);
+            }
         });
 
         // Update context indicator when selected context changes
@@ -290,6 +299,8 @@ class UIManager {
             if (settings.theme) {
                 this.setTheme(settings.theme);
             }
+            // Update context selector visibility based on uniqueContextMode
+            this.updateContextSelectorVisibility();
         });
     }
 
@@ -352,6 +363,9 @@ class UIManager {
     renderNotesList() {
         const notesList = state.get('notes');
         const selectedDate = state.get('selectedDate');
+        const settings = state.get('userSettings');
+        const timezone = settings.timezone || 'UTC';
+        const dateFormat = settings.dateFormat || 'DD-MM-YY';
 
         if (!this.elements.notesList) return;
 
@@ -363,12 +377,27 @@ class UIManager {
         this.elements.notesList.innerHTML = notesList.map(note => {
             const [year, month, day] = note.date.split('-').map(Number);
             const dateObj = new Date(year, month - 1, day);
-            const formattedDate = dateObj.toLocaleDateString('en-US', {
+
+            // Get the day name in English
+            const dayName = dateObj.toLocaleDateString('en-US', {
                 weekday: 'long',
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
+                timeZone: timezone
             });
+
+            // Format date based on user preference
+            const yy = String(year).substring(2); // Get last 2 digits of year
+            const mm = String(month).padStart(2, '0');
+            const dd = String(day).padStart(2, '0');
+
+            let dateStr;
+            if (dateFormat === 'MM-DD-YY') {
+                dateStr = `${mm}-${dd}-${yy}`;
+            } else {
+                dateStr = `${dd}-${mm}-${yy}`;
+            }
+
+            // Format: "Monday, 24-10-25.md" or "Monday, 10-24-25.md" depending on dateFormat
+            const formattedDate = `${dayName}, ${dateStr}.md`;
 
             const isActive = note.date === selectedDate;
 
@@ -487,6 +516,9 @@ class UIManager {
 
         console.log('[UI] App section display:', window.getComputedStyle(this.elements.appSection).display);
 
+        // Update context selector visibility based on settings
+        this.updateContextSelectorVisibility();
+
         // Check if this is first login
         const hasSeenOnboarding = localStorage.getItem('onboarding_completed');
         if (!hasSeenOnboarding) {
@@ -560,6 +592,14 @@ class UIManager {
         if (this.elements.timezoneSelect) {
             this.elements.timezoneSelect.value = settings.timezone;
         }
+        const dateFormatSelect = document.getElementById('date-format-select');
+        if (dateFormatSelect) {
+            dateFormatSelect.value = settings.dateFormat || 'DD-MM-YY';
+        }
+        const uniqueContextModeSwitch = document.getElementById('unique-context-mode-switch');
+        if (uniqueContextModeSwitch) {
+            uniqueContextModeSwitch.checked = settings.uniqueContextMode || false;
+        }
 
         this.elements.settingsModal?.classList.add('is-active');
     }
@@ -625,12 +665,72 @@ class UIManager {
         this.lastKnownDate = currentDate;
     }
 
+    updateDatePickerDisplay(dateStr) {
+        const displayElement = document.getElementById('date-picker-display');
+        if (!displayElement || !dateStr) return;
+
+        const settings = state.get('userSettings');
+        const dateFormat = settings.dateFormat || 'DD-MM-YY';
+
+        const [year, month, day] = dateStr.split('-').map(Number);
+
+        // Format date based on user preference
+        const yy = String(year).substring(2); // Get last 2 digits of year
+        const mm = String(month).padStart(2, '0');
+        const dd = String(day).padStart(2, '0');
+
+        let formattedDate;
+        if (dateFormat === 'MM-DD-YY') {
+            formattedDate = `${mm}/${dd}/${yy}`;
+        } else {
+            formattedDate = `${dd}/${mm}/${yy}`;
+        }
+
+        displayElement.textContent = formattedDate;
+    }
+
     autoExpandTextarea(textarea) {
         textarea.style.height = 'auto';
         textarea.style.height = Math.max(
             textarea.scrollHeight,
             parseInt(getComputedStyle(textarea).minHeight)
         ) + 'px';
+    }
+
+    updateContextSelectorVisibility() {
+        const settings = state.get('userSettings');
+        const uniqueContextMode = settings.uniqueContextMode || false;
+
+        console.log('[UI] updateContextSelectorVisibility - uniqueContextMode:', uniqueContextMode);
+
+        // Get context selector containers (both desktop and mobile)
+        const desktopContextContainer = document.getElementById('desktop-context-selector');
+        const mobileContextContainer = document.getElementById('mobile-context-selector');
+
+        console.log('[UI] desktopContextContainer:', desktopContextContainer);
+        console.log('[UI] mobileContextContainer:', mobileContextContainer);
+
+        if (uniqueContextMode) {
+            // Hide context selectors
+            if (desktopContextContainer) {
+                console.log('[UI] Hiding desktop context selector');
+                desktopContextContainer.style.display = 'none';
+            }
+            if (mobileContextContainer) {
+                console.log('[UI] Hiding mobile context selector');
+                mobileContextContainer.style.display = 'none';
+            }
+        } else {
+            // Show context selectors
+            if (desktopContextContainer) {
+                console.log('[UI] Showing desktop context selector');
+                desktopContextContainer.style.display = '';
+            }
+            if (mobileContextContainer) {
+                console.log('[UI] Showing mobile context selector');
+                mobileContextContainer.style.display = '';
+            }
+        }
     }
 
     setupMobileNavigation() {

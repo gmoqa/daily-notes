@@ -83,9 +83,10 @@ func Login(c *fiber.Ctx) error {
 	}
 
 	defaultSettings := models.UserSettings{
-		Theme:     "dark",
-		WeekStart: 0,
-		Timezone:  "UTC",
+		Theme:      "dark",
+		WeekStart:  0,
+		Timezone:   "UTC",
+		DateFormat: "DD-MM-YY",
 	}
 
 	userSettings := defaultSettings
@@ -201,9 +202,11 @@ func UpdateSettings(c *fiber.Ctx) error {
 	}
 
 	settings := models.UserSettings{
-		Theme:     req.Theme,
-		WeekStart: req.WeekStart,
-		Timezone:  req.Timezone,
+		Theme:             req.Theme,
+		WeekStart:         req.WeekStart,
+		Timezone:          req.Timezone,
+		DateFormat:        req.DateFormat,
+		UniqueContextMode: req.UniqueContextMode,
 	}
 
 	if sess.AccessToken != "" {

@@ -180,9 +180,17 @@ class Application {
             console.log('[MAIN] Last context:', lastContext);
 
             if (lastContext) {
+                // Load notes list
                 await notes.loadNotesList(lastContext);
-                const selectedDate = state.get('selectedDate');
-                await notes.loadNote(lastContext, selectedDate);
+
+                // Get today's date
+                const todayDate = state.get('today');
+
+                // Ensure today's note exists in the list
+                notes.ensureNoteInList(lastContext, todayDate);
+
+                // Load today's note (create if doesn't exist)
+                await notes.loadNote(lastContext, todayDate);
             }
 
             console.log('[MAIN] App initialization complete');
@@ -245,23 +253,80 @@ class Application {
         window.closeSettingsModal = () => ui.closeSettingsModal();
 
         window.saveSettings = async () => {
+            const saveBtn = document.getElementById('settings-save-btn');
+            const saveIcon = document.getElementById('settings-save-icon');
+            const saveSpinner = document.getElementById('settings-save-spinner');
+            const saveText = document.getElementById('settings-save-text');
+            const cancelBtn = document.getElementById('settings-cancel-btn');
+
             const weekStartSelect = document.getElementById('week-start-select');
             const timezoneSelect = document.getElementById('timezone-select');
+            const dateFormatSelect = document.getElementById('date-format-select');
+            const uniqueContextModeSwitch = document.getElementById('unique-context-mode-switch');
             const currentSettings = state.get('userSettings');
 
             const weekStart = parseInt(weekStartSelect?.value || '0');
             const timezone = timezoneSelect?.value || 'UTC';
+            const dateFormat = dateFormatSelect?.value || 'DD-MM-YY';
+            const uniqueContextMode = uniqueContextModeSwitch?.checked || false;
             const theme = currentSettings.theme || 'dark'; // Keep current theme
 
-            try {
-                await api.updateSettings({ theme, weekStart, timezone });
+            // Show loading state
+            if (saveBtn) saveBtn.disabled = true;
+            if (cancelBtn) cancelBtn.disabled = true;
+            if (saveIcon) saveIcon.style.display = 'none';
+            if (saveSpinner) saveSpinner.style.display = 'inline-block';
+            if (saveText) saveText.textContent = 'Saving...';
 
-                state.set('userSettings', { theme, weekStart, timezone });
+            try {
+                await api.updateSettings({ theme, weekStart, timezone, dateFormat, uniqueContextMode });
+
+                state.set('userSettings', { theme, weekStart, timezone, dateFormat, uniqueContextMode });
                 calendar.render();
+
+                // Show success state briefly
+                if (saveText) saveText.textContent = 'Saved!';
+                if (saveSpinner) saveSpinner.style.display = 'none';
+                if (saveIcon) {
+                    saveIcon.style.display = 'inline-flex';
+                    saveIcon.querySelector('.material-symbols-outlined').textContent = 'check_circle';
+                }
+
+                // Wait a bit before closing to show success
+                await new Promise(resolve => setTimeout(resolve, 500));
+
                 ui.closeSettingsModal();
+
+                // Re-render notes list to update date format
+                ui.renderNotesList();
+
+                // Update UI based on unique context mode
+                ui.updateContextSelectorVisibility();
+
+                // If unique context mode is enabled, select first context
+                if (uniqueContextMode) {
+                    const contextsList = state.get('contexts');
+                    if (contextsList && contextsList.length > 0) {
+                        contexts.selectContext(contextsList[0].name);
+                        notes.setTodayDate();
+                        notes.loadNotesList(contextsList[0].name);
+                    }
+                }
             } catch (error) {
                 console.error('Failed to save settings:', error);
                 events.emit(EVENT.SHOW_ERROR, 'Failed to save settings');
+
+                // Reset button state on error
+                if (saveText) saveText.textContent = 'Save';
+                if (saveSpinner) saveSpinner.style.display = 'none';
+                if (saveIcon) {
+                    saveIcon.style.display = 'inline-flex';
+                    saveIcon.querySelector('.material-symbols-outlined').textContent = 'check';
+                }
+            } finally {
+                // Re-enable buttons
+                if (saveBtn) saveBtn.disabled = false;
+                if (cancelBtn) cancelBtn.disabled = false;
             }
         };
 

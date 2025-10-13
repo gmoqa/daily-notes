@@ -305,7 +305,7 @@
 
 .calendar-day.selected {
     background: var(--bulma-primary);
-    color: var(--bulma-primary-invert);
+    color: white !important;
     font-weight: 700;
 }
 
@@ -322,7 +322,7 @@
 }
 
 .calendar-day.selected.has-note::after {
-    background: var(--bulma-primary-invert);
+    background: white;
 }
 
 .calendar-day.today.has-note::after {
@@ -460,6 +460,65 @@
     box-shadow: none !important;
     border-top: 1px solid var(--bulma-border);
     gap: 0.75rem;
+    padding: 1rem 1.5rem;
+}
+
+/* Settings modal specific styles */
+#settings-modal .modal-card-foot {
+    padding: 1rem 1.5rem;
+}
+
+#settings-modal .button.is-primary {
+    color: white;
+}
+
+#settings-modal .button.is-primary .material-symbols-outlined {
+    color: white;
+}
+
+#settings-modal .field-label {
+    flex-basis: 0;
+    flex-grow: 2;
+    flex-shrink: 0;
+    margin-right: 1.5rem;
+    text-align: right;
+}
+
+#settings-modal .field-body {
+    flex-basis: 0;
+    flex-grow: 3;
+    flex-shrink: 1;
+}
+
+/* Settings Save Button Loading State */
+#settings-save-btn {
+    position: relative;
+    min-width: 85px;
+    transition: all var(--transition-fast) ease;
+}
+
+#settings-save-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+#settings-save-btn .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 0.5rem;
+}
+
+#settings-cancel-btn {
+    min-width: 85px;
+}
+
+#settings-cancel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .modal-card {
@@ -521,26 +580,46 @@
     height: 0;
 }
 
+/* Switch Component (for Unique Context Mode) */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
 .slider {
     position: absolute;
     cursor: pointer;
     inset: 0;
     background-color: var(--bulma-border);
-    border-radius: 28px;
     transition: var(--transition-normal);
+}
+
+.slider.round {
+    border-radius: 24px;
 }
 
 .slider:before {
     position: absolute;
     content: "";
-    height: 20px;
-    width: 20px;
-    left: 4px;
-    bottom: 4px;
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
     background-color: white;
-    border-radius: 50%;
     transition: var(--transition-normal);
     box-shadow: var(--shadow-sm);
+}
+
+.slider.round:before {
+    border-radius: 50%;
 }
 
 input:checked + .slider {
@@ -548,11 +627,20 @@ input:checked + .slider {
 }
 
 input:checked + .slider:before {
-    transform: translateX(24px);
+    transform: translateX(20px);
 }
 
 .slider:hover {
     opacity: 0.9;
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 0 2px hsla(var(--bulma-primary-h), var(--bulma-primary-s), var(--bulma-primary-l), 0.25);
+}
+
+input:disabled + .slider {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* ==========================================

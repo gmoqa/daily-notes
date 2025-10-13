@@ -21,7 +21,8 @@ class AuthManager {
                 userSettings: data.user.settings || {
                     theme: 'dark',
                     weekStart: 0,
-                    timezone: 'UTC'
+                    timezone: 'UTC',
+                    dateFormat: 'DD-MM-YY'
                 }
             });
             return true;
@@ -63,7 +64,8 @@ class AuthManager {
                     userSettings: data.user.settings || {
                         theme: 'dark',
                         weekStart: 0,
-                        timezone: 'UTC'
+                        timezone: 'UTC',
+                        dateFormat: 'DD-MM-YY'
                     }
                 });
 

@@ -92,12 +92,24 @@ class ContextsManager {
 
     restoreLastContext() {
         const contexts = state.get('contexts');
+        const settings = state.get('userSettings');
+        const uniqueContextMode = settings.uniqueContextMode || false;
+
         console.log('[CONTEXTS] restoreLastContext - contexts:', contexts);
+        console.log('[CONTEXTS] uniqueContextMode:', uniqueContextMode);
 
         // If no contexts available, return null
         if (!contexts || contexts.length === 0) {
             console.log('[CONTEXTS] No contexts available');
             return null;
+        }
+
+        // If unique context mode is enabled, always select first context
+        if (uniqueContextMode) {
+            const firstContext = contexts[0].name;
+            console.log('[CONTEXTS] Unique context mode - selecting first context:', firstContext);
+            this.selectContext(firstContext);
+            return firstContext;
         }
 
         const lastContext = localStorage.getItem('lastContext');
