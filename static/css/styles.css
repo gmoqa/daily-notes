@@ -475,8 +475,9 @@ body {
    ========================================== */
 #auth-section {
     display: none;
-    min-height: 100vh;
+    height: 100vh; /* Fixed height instead of min-height */
     flex-direction: column;
+    overflow: hidden; /* Prevent overflow */
 }
 
 #auth-section.visible {
@@ -497,6 +498,7 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0; /* Prevent flex item from overflowing */
 }
 
 .landing-hero::before {
@@ -522,6 +524,7 @@ body {
     flex: 1;
     display: flex;
     align-items: center;
+    padding-bottom: 2rem; /* Reduced padding at bottom */
 }
 
 .landing-hero .navbar {
@@ -636,7 +639,11 @@ body {
 }
 
 .badge-icon {
-    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
 }
 
 /* CTA Button */
@@ -684,12 +691,17 @@ body {
 
 /* Landing Footer */
 .landing-footer {
-    padding: 2rem 1.5rem;
+    padding: 1.5rem 1.5rem; /* Reduced from 2rem to 1.5rem */
+    margin: 0; /* Remove all margins */
+    margin-top: 0; /* Explicitly no top margin */
     background: var(--bulma-scheme-main-bis);
-    border-top: 1px solid var(--bulma-border);
+    border-top: 1px solid var(--bulma-border); /* Match screenshot border */
+    border-bottom: none;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    position: relative;
+    z-index: 1;
 }
 
 .footer-content {
@@ -717,10 +729,11 @@ body {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: rgba(255, 255, 255, 0.85) !important;
+    color: var(--bulma-text);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-weight: 400;
     letter-spacing: 0.01em;
+    opacity: 0.85;
 }
 
 .footer-link {
@@ -729,20 +742,21 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    color: rgba(255, 255, 255, 0.85) !important;
+    color: var(--bulma-text);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-weight: 400;
+    opacity: 0.85;
 }
 
 .footer-link:hover {
-    color: rgba(255, 255, 255, 1) !important;
+    opacity: 1;
     text-decoration: underline;
 }
 
 .footer-separator {
     opacity: 0.5;
     user-select: none;
-    color: rgba(255, 255, 255, 0.5) !important;
+    color: var(--bulma-text);
 }
 
 .footer-icon {
@@ -750,23 +764,17 @@ body {
     display: inline-block;
 }
 
-/* Override any theme-specific colors */
+/* Theme-specific adjustments */
 [data-theme="dark"] .footer-text,
-[data-theme="dark"] .footer-link {
-    color: rgba(255, 255, 255, 0.85) !important;
-}
-
-[data-theme="dark"] .footer-link:hover {
-    color: rgba(255, 255, 255, 1) !important;
+[data-theme="dark"] .footer-link,
+[data-theme="dark"] .footer-separator {
+    color: var(--bulma-text);
 }
 
 [data-theme="light"] .footer-text,
-[data-theme="light"] .footer-link {
-    color: rgba(255, 255, 255, 0.85) !important;
-}
-
-[data-theme="light"] .footer-link:hover {
-    color: rgba(255, 255, 255, 1) !important;
+[data-theme="light"] .footer-link,
+[data-theme="light"] .footer-separator {
+    color: var(--bulma-text);
 }
 
 /* Landing Loader */
@@ -798,29 +806,41 @@ body {
 
 /* Screenshot Section */
 .screenshot-container {
-    margin-top: 3rem;
-    padding: 0 1rem;
+    margin: 0; /* No margins */
+    margin-bottom: 0; /* Ensure no bottom margin */
+    padding: 0 1rem; /* Add horizontal padding */
+    padding-bottom: 0; /* No bottom padding */
+    position: relative;
+    background: var(--bulma-scheme-main-bis); /* Match footer background */
+    flex-shrink: 0; /* Prevent shrinking */
+    display: flex;
+    justify-content: center;
 }
 
 .screenshot-wrapper {
     position: relative;
-    max-width: 1000px;
-    margin: 0 auto;
-    border-radius: 12px;
+    max-width: 1000px; /* Restore max width */
+    width: 100%;
+    margin: 0;
+    margin-bottom: 0;
+    border-radius: 12px 12px 0 0; /* Only top corners rounded */
     overflow: hidden;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    transition: transform var(--transition-slow) var(--transition-easing);
+    border: 1px solid var(--bulma-border); /* Use theme border */
+    border-bottom: none; /* Remove bottom border */
+    transition: none; /* Remove hover animation */
+    height: 35vh; /* Reduced from 40vh to fit better */
 }
 
 .screenshot-wrapper:hover {
-    transform: translateY(-8px);
+    transform: none; /* Remove hover effect */
 }
 
 .screenshot-image {
     width: 100%;
-    height: auto;
+    height: 100%; /* Fill the container height */
     display: block;
-    object-fit: contain;
+    object-fit: cover;
+    object-position: top; /* Show top part of the image */
 }
 
 /* Show/hide screenshots based on theme */

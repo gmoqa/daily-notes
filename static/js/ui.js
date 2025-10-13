@@ -22,6 +22,7 @@ class UIManager {
         this.setupEventListeners();
         this.setupStateSubscriptions();
         this.setupUserDropdown();
+        this.setupMobileNavigation();
         this.startClock();
     }
 
@@ -34,6 +35,10 @@ class UIManager {
             // Context
             contextSelect: document.getElementById('context-select'),
             contextColorIndicator: document.getElementById('context-color-indicator'),
+
+            // Mobile context
+            mobileContextSelect: document.getElementById('mobile-context-select'),
+            mobileContextColorIndicator: document.getElementById('mobile-context-color-indicator'),
 
             // Date
             datePicker: document.getElementById('date-picker'),
@@ -68,17 +73,45 @@ class UIManager {
             // Settings
             weekStartSelect: document.getElementById('week-start-select'),
             timezoneSelect: document.getElementById('timezone-select'),
+
+            // Mobile navigation
+            mobileNotesToggle: document.getElementById('mobile-notes-toggle'),
+            mobileCalendarToggle: document.getElementById('mobile-calendar-toggle'),
+            sidebar: document.querySelector('.sidebar'),
+            calendarPanel: document.querySelector('.calendar-panel'),
+            sidebarOverlay: document.getElementById('sidebar-overlay'),
+            calendarOverlay: document.getElementById('calendar-overlay'),
+            sidebarClose: document.getElementById('sidebar-close'),
+            calendarClose: document.getElementById('calendar-close'),
         };
     }
 
     setupEventListeners() {
-        // Context selection
+        // Context selection (desktop)
         this.elements.contextSelect?.addEventListener('change', (e) => {
             const context = e.target.value;
             contexts.selectContext(context);
             if (context) {
                 notes.setTodayDate();
                 notes.loadNotesList(context);
+            }
+            // Sync with mobile select
+            if (this.elements.mobileContextSelect) {
+                this.elements.mobileContextSelect.value = context;
+            }
+        });
+
+        // Context selection (mobile)
+        this.elements.mobileContextSelect?.addEventListener('change', (e) => {
+            const context = e.target.value;
+            contexts.selectContext(context);
+            if (context) {
+                notes.setTodayDate();
+                notes.loadNotesList(context);
+            }
+            // Sync with desktop select
+            if (this.elements.contextSelect) {
+                this.elements.contextSelect.value = context;
             }
         });
 
@@ -234,9 +267,12 @@ class UIManager {
 
         // Update context indicator when selected context changes
         state.subscribe('selectedContext', (selectedContext) => {
-            // Update the select dropdown value
+            // Update the select dropdown values (both desktop and mobile)
             if (this.elements.contextSelect && selectedContext) {
                 this.elements.contextSelect.value = selectedContext;
+            }
+            if (this.elements.mobileContextSelect && selectedContext) {
+                this.elements.mobileContextSelect.value = selectedContext;
             }
             this.updateContextIndicator();
             this.updateEditorState();
@@ -259,34 +295,57 @@ class UIManager {
 
     renderContextsSelect() {
         const contextsList = state.get('contexts');
-        if (!this.elements.contextSelect) return;
-
         const selectedContext = state.get('selectedContext');
 
-        this.elements.contextSelect.innerHTML =
-            '<option value="">Select context...</option>' +
+        const optionsHTML = '<option value="">Select context...</option>' +
             contextsList.map(c =>
                 `<option value="${c.name}" data-color="${c.color || '#485fc7'}">${c.name}</option>`
             ).join('');
 
-        if (selectedContext) {
-            this.elements.contextSelect.value = selectedContext;
+        // Update desktop selector
+        if (this.elements.contextSelect) {
+            this.elements.contextSelect.innerHTML = optionsHTML;
+            if (selectedContext) {
+                this.elements.contextSelect.value = selectedContext;
+            }
+        }
+
+        // Update mobile selector
+        if (this.elements.mobileContextSelect) {
+            this.elements.mobileContextSelect.innerHTML = optionsHTML;
+            if (selectedContext) {
+                this.elements.mobileContextSelect.value = selectedContext;
+            }
         }
 
         this.updateContextIndicator();
     }
 
     updateContextIndicator() {
-        if (!this.elements.contextSelect || !this.elements.contextColorIndicator) return;
+        // Update desktop indicator
+        if (this.elements.contextSelect && this.elements.contextColorIndicator) {
+            const opt = this.elements.contextSelect.options[this.elements.contextSelect.selectedIndex];
 
-        const opt = this.elements.contextSelect.options[this.elements.contextSelect.selectedIndex];
+            if (opt?.dataset.color && opt.value !== '') {
+                this.elements.contextColorIndicator.style.background = opt.dataset.color;
+                this.elements.contextColorIndicator.style.opacity = '1';
+            } else {
+                this.elements.contextColorIndicator.style.background = 'var(--bulma-grey-light)';
+                this.elements.contextColorIndicator.style.opacity = '0.3';
+            }
+        }
 
-        if (opt?.dataset.color && opt.value !== '') {
-            this.elements.contextColorIndicator.style.background = opt.dataset.color;
-            this.elements.contextColorIndicator.style.opacity = '1';
-        } else {
-            this.elements.contextColorIndicator.style.background = 'var(--bulma-grey-light)';
-            this.elements.contextColorIndicator.style.opacity = '0.3';
+        // Update mobile indicator
+        if (this.elements.mobileContextSelect && this.elements.mobileContextColorIndicator) {
+            const opt = this.elements.mobileContextSelect.options[this.elements.mobileContextSelect.selectedIndex];
+
+            if (opt?.dataset.color && opt.value !== '') {
+                this.elements.mobileContextColorIndicator.style.background = opt.dataset.color;
+                this.elements.mobileContextColorIndicator.style.opacity = '1';
+            } else {
+                this.elements.mobileContextColorIndicator.style.background = 'var(--bulma-grey-light)';
+                this.elements.mobileContextColorIndicator.style.opacity = '0.3';
+            }
         }
     }
 
@@ -572,6 +631,136 @@ class UIManager {
             textarea.scrollHeight,
             parseInt(getComputedStyle(textarea).minHeight)
         ) + 'px';
+    }
+
+    setupMobileNavigation() {
+        // Toggle sidebar (notes list)
+        this.elements.mobileNotesToggle?.addEventListener('click', () => {
+            this.toggleMobileSidebar();
+        });
+
+        // Toggle calendar
+        this.elements.mobileCalendarToggle?.addEventListener('click', () => {
+            this.toggleMobileCalendar();
+        });
+
+        // Close sidebar
+        this.elements.sidebarClose?.addEventListener('click', () => {
+            this.closeMobileSidebar();
+        });
+
+        // Close calendar
+        this.elements.calendarClose?.addEventListener('click', () => {
+            this.closeMobileCalendar();
+        });
+
+        // Close on overlay click
+        this.elements.sidebarOverlay?.addEventListener('click', () => {
+            this.closeMobileSidebar();
+        });
+
+        this.elements.calendarOverlay?.addEventListener('click', () => {
+            this.closeMobileCalendar();
+        });
+
+        // Close mobile panels when selecting a note
+        if (this.elements.notesList) {
+            this.elements.notesList.addEventListener('click', (e) => {
+                if (e.target.tagName === 'A' && window.innerWidth <= 768) {
+                    this.closeMobileSidebar();
+                }
+            });
+        }
+
+        // Clean up mobile panel states on resize
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                // Remove mobile panel classes and reset styles when returning to desktop
+                if (this.elements.sidebar) {
+                    this.elements.sidebar.classList.remove('mobile-panel', 'active');
+                    this.elements.sidebar.style.display = '';
+                }
+                if (this.elements.calendarPanel) {
+                    this.elements.calendarPanel.classList.remove('mobile-panel', 'active');
+                    this.elements.calendarPanel.style.display = '';
+                }
+                if (this.elements.sidebarOverlay) {
+                    this.elements.sidebarOverlay.classList.remove('active');
+                }
+                if (this.elements.calendarOverlay) {
+                    this.elements.calendarOverlay.classList.remove('active');
+                }
+                document.body.style.overflow = '';
+            }
+        });
+    }
+
+    toggleMobileSidebar() {
+        if (!this.elements.sidebar || !this.elements.sidebarOverlay) return;
+
+        // Only work on mobile screens
+        if (window.innerWidth > 768) return;
+
+        const isActive = this.elements.sidebar.classList.contains('mobile-panel');
+
+        if (!isActive) {
+            // Add mobile-panel class and show
+            this.elements.sidebar.classList.add('mobile-panel');
+            this.elements.sidebar.style.display = 'flex';
+        }
+
+        // Toggle active state
+        this.elements.sidebar.classList.toggle('active');
+        this.elements.sidebarOverlay.classList.toggle('active');
+
+        // Prevent body scroll when panel is open
+        if (this.elements.sidebar.classList.contains('active')) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+    }
+
+    closeMobileSidebar() {
+        if (!this.elements.sidebar || !this.elements.sidebarOverlay) return;
+
+        this.elements.sidebar.classList.remove('active');
+        this.elements.sidebarOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    toggleMobileCalendar() {
+        if (!this.elements.calendarPanel || !this.elements.calendarOverlay) return;
+
+        // Only work on mobile screens
+        if (window.innerWidth > 768) return;
+
+        const isActive = this.elements.calendarPanel.classList.contains('mobile-panel');
+
+        if (!isActive) {
+            // Add mobile-panel class and show
+            this.elements.calendarPanel.classList.add('mobile-panel');
+            this.elements.calendarPanel.style.display = 'flex';
+        }
+
+        // Toggle active state
+        this.elements.calendarPanel.classList.toggle('active');
+        this.elements.calendarOverlay.classList.toggle('active');
+
+        // Prevent body scroll when panel is open
+        if (this.elements.calendarPanel.classList.contains('active')) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+    }
+
+    closeMobileCalendar() {
+        if (!this.elements.calendarPanel || !this.elements.calendarOverlay) return;
+
+        this.elements.calendarPanel.classList.remove('active');
+        this.elements.calendarOverlay.classList.remove('active');
+        document.body.style.overflow = '';
     }
 }
 

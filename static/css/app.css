@@ -556,6 +556,150 @@ input:checked + .slider:before {
 }
 
 /* ==========================================
+   MOBILE NAVIGATION
+   ========================================== */
+.mobile-nav {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: var(--bulma-scheme-main-bis);
+    border-bottom: 1px solid var(--bulma-border);
+    padding: 0.75rem 1rem;
+    z-index: 50;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.mobile-nav-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex: 1;
+}
+
+.mobile-nav .context-select-wrapper {
+    flex: 1;
+    min-width: 0;
+}
+
+.mobile-nav .context-select {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem 0.5rem 2rem;
+}
+
+.mobile-nav-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.mobile-nav-button {
+    padding: 0.5rem;
+    border: 1px solid var(--bulma-border);
+    background: var(--bulma-scheme-main);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all var(--transition-fast) ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mobile-nav-button:hover {
+    background: var(--bulma-scheme-main-ter);
+    border-color: var(--bulma-primary);
+}
+
+.mobile-nav-button .material-symbols-outlined {
+    font-size: 1.25rem;
+}
+
+/* Mobile Sidebar Overlay */
+.sidebar-overlay,
+.calendar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 60;
+    opacity: 0;
+    transition: opacity var(--transition-normal) ease;
+}
+
+.sidebar-overlay.active,
+.calendar-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+/* Mobile Sidebar Panel */
+.sidebar.mobile-panel {
+    position: fixed;
+    top: 0;
+    left: -100%;
+    width: 80%;
+    max-width: 320px;
+    height: 100vh;
+    z-index: 70;
+    transition: left var(--transition-normal) ease;
+    box-shadow: var(--shadow-xl);
+}
+
+.sidebar.mobile-panel.active {
+    left: 0;
+}
+
+/* Mobile Calendar Panel */
+.calendar-panel.mobile-panel {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: 80%;
+    max-width: 340px;
+    height: 100vh;
+    z-index: 70;
+    transition: right var(--transition-normal) ease;
+    box-shadow: var(--shadow-xl);
+}
+
+.calendar-panel.mobile-panel.active {
+    right: 0;
+}
+
+/* Mobile Panel Close Button */
+.mobile-panel-close {
+    display: none; /* Hidden by default (desktop) */
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--bulma-scheme-main);
+    border: 1px solid var(--bulma-border);
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: all var(--transition-fast) ease;
+}
+
+.mobile-panel-close:hover {
+    background: var(--bulma-scheme-main-ter);
+    border-color: var(--bulma-primary);
+}
+
+.mobile-panel-close .material-symbols-outlined {
+    font-size: 1.25rem;
+}
+
+/* Show close button only in mobile panels */
+.mobile-panel .mobile-panel-close {
+    display: flex;
+}
+
+/* ==========================================
    CONTROLS (Mobile)
    ========================================== */
 .controls {
@@ -583,18 +727,65 @@ input:checked + .slider:before {
 }
 
 @media (max-width: 768px) {
+    /* Show mobile navigation */
+    .mobile-nav {
+        display: flex;
+    }
+
+    /* Adjust main layout */
     .app-layout {
         grid-template-columns: 1fr;
+        padding-top: 0; /* Remove padding from app-layout */
     }
 
     .sidebar {
         display: none;
     }
 
+    .main-section {
+        padding-top: 4rem; /* Add padding to main section instead */
+    }
+
+    .main-section .container {
+        padding-top: 1rem; /* Additional padding for breathing room */
+    }
+
+    .controls {
+        padding-top: 0;
+        margin-top: 0;
+        margin-bottom: 1rem;
+        padding: 0 1rem; /* Match editor padding */
+    }
+
+    .controls #date-picker {
+        width: 100%;
+        max-width: 100%;
+    }
+
     .editor-wrapper {
         width: calc(100% - 2rem);
         margin: 1rem;
-        min-height: calc(100vh - 6rem);
+        margin-top: 0; /* No top margin needed now */
+        min-height: calc(100vh - 10rem); /* Adjusted for new spacing */
+    }
+
+    .calendar-panel {
+        display: none;
+    }
+
+    /* Hide context selector in mobile sidebar (redundant with top bar) */
+    .sidebar.mobile-panel .p-4 {
+        display: none;
+    }
+
+    /* Adjust sidebar content padding when in mobile mode */
+    .sidebar.mobile-panel .sidebar-content {
+        padding-top: 3rem;
+    }
+
+    /* Adjust calendar panel padding in mobile mode */
+    .calendar-panel.mobile-panel .content {
+        padding-top: 3.5rem;
     }
 
     /* Landing page improvements for mobile */
