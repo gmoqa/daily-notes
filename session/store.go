@@ -59,6 +59,19 @@ func Get(sessionID string) (*models.Session, error) {
 	return session, nil
 }
 
+func GetByUserID(userID string) *models.Session {
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+
+	for _, session := range store.sessions {
+		if session.UserID == userID && time.Now().Before(session.ExpiresAt) {
+			return session
+		}
+	}
+
+	return nil
+}
+
 func Update(sessionID string, session *models.Session) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()

@@ -16,7 +16,7 @@ templ Index(googleClientID string) {
 				@components.CalendarPanel()
 			</div>
 		</section>
-		@components.SyncStatus()
+		// Sync status indicator removed - not needed with SQLite local-first approach
 		@components.LandingLoader()
 		@components.Modals()
 	}

@@ -455,22 +455,9 @@ class UIManager {
     }
 
     updateSyncStatus({ pending, syncing }) {
-        if (!this.elements.syncStatus || !this.elements.syncStatusText) return;
-
-        if (pending > 0) {
-            this.elements.syncStatus.classList.add('visible');
-            this.elements.syncStatus.classList.remove('synced', 'error');
-            this.elements.syncStatusText.textContent = syncing
-                ? `Syncing ${pending} change${pending > 1 ? 's' : ''}...`
-                : `${pending} pending`;
-        } else {
-            this.elements.syncStatus.classList.add('synced');
-            this.elements.syncStatus.classList.remove('error');
-            this.elements.syncStatusText.textContent = 'All synced ✓';
-            setTimeout(() => {
-                this.elements.syncStatus.classList.remove('visible', 'synced');
-            }, 2000);
-        }
+        // Sync status indicator disabled
+        // Users don't need to see sync feedback with SQLite local-first approach
+        return;
     }
 
     setTheme(theme) {

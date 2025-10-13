@@ -6,13 +6,21 @@ import (
 	"daily-notes/drive"
 	"daily-notes/models"
 	"daily-notes/session"
+	"daily-notes/sync"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/oauth2"
 )
+
+var syncWorker *sync.Worker
+
+func SetSyncWorker(w *sync.Worker) {
+	syncWorker = w
+}
 
 func Login(c *fiber.Ctx) error {
 	var req models.LoginRequest
@@ -129,6 +137,35 @@ func Login(c *fiber.Ctx) error {
 	}
 	c.Cookie(cookie)
 
+	// Save/update user in database
+	user := &models.User{
+		ID:          googleID,
+		GoogleID:    googleID,
+		Email:       email,
+		Name:        name,
+		Picture:     picture,
+		Settings:    userSettings,
+		CreatedAt:   time.Now(),
+		LastLoginAt: time.Now(),
+	}
+	if err := repo.UpsertUser(user); err != nil {
+		log.Printf("Failed to save user to database: %v", err)
+	}
+
+	// Check if this is first login (no data in local DB)
+	contexts, err := repo.GetContexts(googleID)
+	if err == nil && len(contexts) == 0 && syncWorker != nil {
+		// Import data from Drive in background
+		go func() {
+			log.Printf("First login detected for user %s, importing from Drive...", googleID)
+			if err := syncWorker.ImportFromDrive(googleID, token); err != nil {
+				log.Printf("Failed to import from Drive: %v", err)
+			} else {
+				log.Printf("Successfully imported data from Drive for user %s", googleID)
+			}
+		}()
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"user": fiber.Map{
@@ -209,6 +246,12 @@ func UpdateSettings(c *fiber.Ctx) error {
 		UniqueContextMode: req.UniqueContextMode,
 	}
 
+	// Update in local database
+	if err := repo.UpdateUserSettings(sess.UserID, settings); err != nil {
+		log.Printf("Failed to update settings in database: %v", err)
+	}
+
+	// Update in Drive async
 	if sess.AccessToken != "" {
 		token := &oauth2.Token{
 			AccessToken:  sess.AccessToken,
@@ -216,10 +259,12 @@ func UpdateSettings(c *fiber.Ctx) error {
 			Expiry:       sess.TokenExpiry,
 		}
 
-		driveService, err := drive.NewService(context.Background(), token, sess.UserID)
-		if err == nil {
-			driveService.UpdateSettings(settings)
-		}
+		go func() {
+			driveService, err := drive.NewService(context.Background(), token, sess.UserID)
+			if err == nil {
+				driveService.UpdateSettings(settings)
+			}
+		}()
 	}
 
 	sess.Settings = settings

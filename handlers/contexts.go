@@ -1,20 +1,21 @@
 package handlers
 
 import (
+	"daily-notes/middleware"
 	"daily-notes/models"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 func GetContexts(c *fiber.Ctx) error {
-	driveService, err := getDriveService(c)
-	if err != nil {
-		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
-	}
+	userID := middleware.GetUserID(c)
 
-	contexts, err := driveService.GetContexts()
+	// Get from local database (instant)
+	contexts, err := repo.GetContexts(userID)
 	if err != nil {
 		return serverErrorWithDetails(c, "Failed to fetch contexts", err)
 	}
@@ -53,15 +54,31 @@ func CreateContext(c *fiber.Ctx) error {
 		req.Color = "#485fc7"
 	}
 
-	driveService, err := getDriveService(c)
+	userID := middleware.GetUserID(c)
+
+	// Check if context already exists
+	existing, err := repo.GetContextByName(userID, req.Name)
 	if err != nil {
-		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
+		return serverErrorWithDetails(c, "Failed to check existing context", err)
+	}
+	if existing != nil {
+		return badRequest(c, "Context with this name already exists")
 	}
 
-	context, err := driveService.CreateContext(req.Name, req.Color)
-	if err != nil {
+	// Create in local database immediately
+	context := &models.Context{
+		ID:        uuid.New().String(),
+		UserID:    userID,
+		Name:      req.Name,
+		Color:     req.Color,
+		CreatedAt: time.Now(),
+	}
+
+	if err := repo.CreateContext(context); err != nil {
 		return serverErrorWithDetails(c, "Failed to create context", err)
 	}
+
+	// Context will be synced to Drive by the background worker when notes are created
 	return created(c, fiber.Map{"context": context})
 }
 
@@ -71,13 +88,11 @@ func DeleteContext(c *fiber.Ctx) error {
 		return badRequest(c, "context ID is required")
 	}
 
-	driveService, err := getDriveService(c)
-	if err != nil {
-		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
-	}
-
-	if err := driveService.DeleteContext(contextID); err != nil {
+	// Delete from local database
+	if err := repo.DeleteContext(contextID); err != nil {
 		return serverErrorWithDetails(c, "Failed to delete context", err)
 	}
+
+	// Note: Deletion from Drive should be handled manually or by a separate cleanup job
 	return success(c, fiber.Map{"message": "Context deleted successfully"})
 }

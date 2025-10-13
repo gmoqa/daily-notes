@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"daily-notes/config"
+	"daily-notes/database"
 	"daily-notes/handlers"
 	"daily-notes/middleware"
 	"daily-notes/session"
+	"daily-notes/sync"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -16,6 +18,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"golang.org/x/oauth2"
 )
 
 func main() {
@@ -24,8 +27,34 @@ func main() {
 	logger := setupLogger()
 	slog.SetDefault(logger)
 
+	// Initialize SQLite database
+	dbPath := config.GetEnv("DB_PATH", "./data/daily-notes.db")
+	db, err := database.New(dbPath)
+	if err != nil {
+		logger.Error("failed to open database", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	if err := db.Migrate(); err != nil {
+		logger.Error("failed to run migrations", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("database initialized", "path", dbPath)
+
+	// Create repository
+	repo := database.NewRepository(db)
+	handlers.SetRepository(repo)
+
+	// Start session cleanup
 	session.StartCleanupRoutine()
 	logger.Info("session cleanup routine started")
+
+	// Start sync worker for background Drive sync
+	syncWorker := sync.NewWorker(repo, getUserToken)
+	syncWorker.Start()
+	handlers.SetSyncWorker(syncWorker)
+	logger.Info("sync worker started")
 
 	// Templ doesn't need a template engine - it renders directly
 	app := fiber.New(fiber.Config{
@@ -114,6 +143,10 @@ func main() {
 
 	logger.Info("shutting down server gracefully")
 
+	// Stop sync worker
+	syncWorker.Stop()
+	logger.Info("sync worker stopped")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -122,6 +155,21 @@ func main() {
 	}
 
 	logger.Info("server stopped")
+}
+
+// getUserToken retrieves the OAuth token for a user from their session
+func getUserToken(userID string) (*oauth2.Token, error) {
+	// Find session by userID
+	sess := session.GetByUserID(userID)
+	if sess == nil {
+		return nil, fiber.ErrUnauthorized
+	}
+
+	return &oauth2.Token{
+		AccessToken:  sess.AccessToken,
+		RefreshToken: sess.RefreshToken,
+		Expiry:       sess.TokenExpiry,
+	}, nil
 }
 
 func setupLogger() *slog.Logger {

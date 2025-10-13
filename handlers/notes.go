@@ -2,13 +2,21 @@ package handlers
 
 import (
 	"context"
+	"daily-notes/database"
 	"daily-notes/drive"
 	"daily-notes/middleware"
 	"daily-notes/models"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/oauth2"
 )
+
+var repo *database.Repository
+
+func SetRepository(r *database.Repository) {
+	repo = r
+}
 
 func getDriveService(c *fiber.Ctx) (*drive.Service, error) {
 	sess, ok := c.Locals("session").(*models.Session)
@@ -38,19 +46,18 @@ func GetNote(c *fiber.Ctx) error {
 		return badRequest(c, "context and date are required")
 	}
 
-	driveService, err := getDriveService(c)
-	if err != nil {
-		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
-	}
+	userID := middleware.GetUserID(c)
 
-	note, err := driveService.GetNote(contextName, date)
+	// Try local database first (fast path)
+	note, err := repo.GetNote(userID, contextName, date)
 	if err != nil {
-		return serverErrorWithDetails(c, "Failed to fetch note", err)
+		return serverErrorWithDetails(c, "Failed to fetch note from database", err)
 	}
 
 	if note == nil {
+		// Return empty note
 		return success(c, fiber.Map{"note": fiber.Map{
-			"user_id": middleware.GetUserID(c),
+			"user_id": userID,
 			"context": contextName,
 			"date":    date,
 			"content": "",
@@ -69,15 +76,23 @@ func UpsertNote(c *fiber.Ctx) error {
 		return badRequest(c, "context and date are required")
 	}
 
-	driveService, err := getDriveService(c)
-	if err != nil {
-		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
+	userID := middleware.GetUserID(c)
+
+	// Save to local database immediately (fast response)
+	note := &models.Note{
+		UserID:    userID,
+		Context:   req.Context,
+		Date:      req.Date,
+		Content:   req.Content,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
-	note, err := driveService.UpsertNote(req.Context, req.Date, req.Content)
-	if err != nil {
+	// Mark for sync with Drive (sync_pending = true)
+	if err := repo.UpsertNote(note, true); err != nil {
 		return serverErrorWithDetails(c, "Failed to save note", err)
 	}
+
 	return success(c, fiber.Map{"note": note})
 }
 
@@ -97,15 +112,14 @@ func GetNotesByContext(c *fiber.Ctx) error {
 		offset = 0
 	}
 
-	driveService, err := getDriveService(c)
-	if err != nil {
-		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
-	}
+	userID := middleware.GetUserID(c)
 
-	notes, err := driveService.GetNotesByContext(contextName, limit, offset)
+	// Get from local database (instant)
+	notes, err := repo.GetNotesByContext(userID, contextName, limit, offset)
 	if err != nil {
 		return serverErrorWithDetails(c, "Failed to fetch notes", err)
 	}
+
 	return success(c, fiber.Map{
 		"notes":  notes,
 		"limit":  limit,

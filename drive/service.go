@@ -450,3 +450,62 @@ func (s *Service) GetSettings() (models.UserSettings, error) {
 	}
 	return config.Settings, nil
 }
+
+// GetAllNotesInContext retrieves all notes with content for a context (used for initial sync)
+func (s *Service) GetAllNotesInContext(contextName string) ([]models.Note, error) {
+	rootFolderID, err := s.getOrCreateFolder("daily-notes", "")
+	if err != nil {
+		return nil, err
+	}
+
+	contextFolderID, err := s.getOrCreateFolder(contextName, rootFolderID)
+	if err != nil {
+		return nil, err
+	}
+
+	// List all .md files
+	query := fmt.Sprintf("'%s' in parents and name contains '.md' and trashed=false", contextFolderID)
+	fileList, err := s.client.Files.List().
+		Q(query).
+		Fields("files(id, name, createdTime, modifiedTime)").
+		PageSize(1000).
+		Do()
+	if err != nil {
+		return nil, err
+	}
+
+	var notes []models.Note
+	for _, file := range fileList.Files {
+		date, err := s.filenameToDate(file.Name)
+		if err != nil {
+			continue
+		}
+
+		// Download content
+		resp, err := s.client.Files.Get(file.Id).Download()
+		if err != nil {
+			continue
+		}
+
+		contentBytes, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			continue
+		}
+
+		createdAt, _ := time.Parse(time.RFC3339, file.CreatedTime)
+		updatedAt, _ := time.Parse(time.RFC3339, file.ModifiedTime)
+
+		notes = append(notes, models.Note{
+			ID:        file.Id,
+			UserID:    s.userID,
+			Context:   contextName,
+			Date:      date,
+			Content:   string(contentBytes),
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
+		})
+	}
+
+	return notes, nil
+}

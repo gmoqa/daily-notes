@@ -23,6 +23,12 @@ go.work
 .env.production
 .env.*.local
 
+# Database files
+data/
+*.db
+*.db-wal
+*.db-shm
+
 # IDE
 .vscode/
 .idea/
