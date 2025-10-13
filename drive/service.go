@@ -27,7 +27,7 @@ type Config struct {
 
 func NewService(ctx context.Context, token *oauth2.Token, userID string) (*Service, error) {
 	config := &oauth2.Config{
-		Scopes: []string{drive.DriveFileScope},
+		Scopes: []string{drive.DriveAppdataScope},
 	}
 
 	client := config.Client(ctx, token)
@@ -43,12 +43,19 @@ func NewService(ctx context.Context, token *oauth2.Token, userID string) (*Servi
 }
 
 func (s *Service) getOrCreateFolder(name string, parentID string) (string, error) {
-	query := fmt.Sprintf("name='%s' and mimeType='application/vnd.google-apps.folder' and trashed=false", name)
-	if parentID != "" {
-		query += fmt.Sprintf(" and '%s' in parents", parentID)
+	// Use appDataFolder as the parent if no parent is specified
+	// This ensures complete isolation per user
+	if parentID == "" {
+		parentID = "appDataFolder"
 	}
 
-	fileList, err := s.client.Files.List().Q(query).Fields("files(id, name)").Do()
+	query := fmt.Sprintf("name='%s' and mimeType='application/vnd.google-apps.folder' and trashed=false and '%s' in parents", name, parentID)
+
+	fileList, err := s.client.Files.List().
+		Q(query).
+		Spaces("appDataFolder").
+		Fields("files(id, name)").
+		Do()
 	if err != nil {
 		return "", err
 	}
@@ -60,12 +67,12 @@ func (s *Service) getOrCreateFolder(name string, parentID string) (string, error
 	fileMetadata := &drive.File{
 		Name:     name,
 		MimeType: "application/vnd.google-apps.folder",
-	}
-	if parentID != "" {
-		fileMetadata.Parents = []string{parentID}
+		Parents:  []string{parentID},
 	}
 
-	file, err := s.client.Files.Create(fileMetadata).Fields("id").Do()
+	file, err := s.client.Files.Create(fileMetadata).
+		Fields("id").
+		Do()
 	if err != nil {
 		return "", err
 	}
@@ -80,7 +87,11 @@ func (s *Service) GetConfig() (*Config, error) {
 	}
 
 	query := fmt.Sprintf("name='config.json' and '%s' in parents and trashed=false", rootFolderID)
-	fileList, err := s.client.Files.List().Q(query).Fields("files(id)").Do()
+	fileList, err := s.client.Files.List().
+		Q(query).
+		Spaces("appDataFolder").
+		Fields("files(id)").
+		Do()
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +132,11 @@ func (s *Service) SaveConfig(config *Config) error {
 	}
 
 	query := fmt.Sprintf("name='config.json' and '%s' in parents and trashed=false", rootFolderID)
-	fileList, err := s.client.Files.List().Q(query).Fields("files(id)").Do()
+	fileList, err := s.client.Files.List().
+		Q(query).
+		Spaces("appDataFolder").
+		Fields("files(id)").
+		Do()
 	if err != nil {
 		return err
 	}
@@ -228,7 +243,11 @@ func (s *Service) GetNote(contextName, date string) (*models.Note, error) {
 
 	// Search for the markdown file
 	query := fmt.Sprintf("name='%s' and '%s' in parents and trashed=false", filename, contextFolderID)
-	fileList, err := s.client.Files.List().Q(query).Fields("files(id, createdTime, modifiedTime)").Do()
+	fileList, err := s.client.Files.List().
+		Q(query).
+		Spaces("appDataFolder").
+		Fields("files(id, createdTime, modifiedTime)").
+		Do()
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +301,11 @@ func (s *Service) UpsertNote(contextName, date, content string) (*models.Note, e
 
 	// Search for existing file
 	query := fmt.Sprintf("name='%s' and '%s' in parents and trashed=false", filename, contextFolderID)
-	fileList, err := s.client.Files.List().Q(query).Fields("files(id, createdTime, modifiedTime)").Do()
+	fileList, err := s.client.Files.List().
+		Q(query).
+		Spaces("appDataFolder").
+		Fields("files(id, createdTime, modifiedTime)").
+		Do()
 	if err != nil {
 		return nil, err
 	}
@@ -346,6 +369,7 @@ func (s *Service) GetNotesByContext(contextName string, limit, offset int) ([]mo
 	query := fmt.Sprintf("'%s' in parents and name contains '.md' and trashed=false", contextFolderID)
 	fileList, err := s.client.Files.List().
 		Q(query).
+		Spaces("appDataFolder").
 		Fields("files(id, name, createdTime, modifiedTime)").
 		OrderBy("modifiedTime desc").
 		PageSize(int64(limit + offset)).
