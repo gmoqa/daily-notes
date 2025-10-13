@@ -119,8 +119,8 @@ class AuthManager {
 
             setTimeout(() => {
                 state.set('isLoggingOut', false);
-                // Force full page reload to ensure clean state
-                window.location.reload(true);
+                // Redirect to home page which will show login
+                window.location.href = '/';
             }, 500);
         } catch (error) {
             state.set('isLoggingOut', false);
