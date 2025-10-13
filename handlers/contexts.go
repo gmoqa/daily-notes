@@ -11,12 +11,12 @@ import (
 func GetContexts(c *fiber.Ctx) error {
 	driveService, err := getDriveService(c)
 	if err != nil {
-		return serverError(c, "Failed to initialize Drive service")
+		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
 	}
 
 	contexts, err := driveService.GetContexts()
 	if err != nil {
-		return serverError(c, "Failed to fetch contexts")
+		return serverErrorWithDetails(c, "Failed to fetch contexts", err)
 	}
 
 	return success(c, fiber.Map{"contexts": contexts})
@@ -55,12 +55,12 @@ func CreateContext(c *fiber.Ctx) error {
 
 	driveService, err := getDriveService(c)
 	if err != nil {
-		return serverError(c, "Failed to initialize Drive service")
+		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
 	}
 
 	context, err := driveService.CreateContext(req.Name, req.Color)
 	if err != nil {
-		return serverError(c, "Failed to create context")
+		return serverErrorWithDetails(c, "Failed to create context", err)
 	}
 	return created(c, fiber.Map{"context": context})
 }
@@ -73,11 +73,11 @@ func DeleteContext(c *fiber.Ctx) error {
 
 	driveService, err := getDriveService(c)
 	if err != nil {
-		return serverError(c, "Failed to initialize Drive service")
+		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
 	}
 
 	if err := driveService.DeleteContext(contextID); err != nil {
-		return serverError(c, "Failed to delete context")
+		return serverErrorWithDetails(c, "Failed to delete context", err)
 	}
 	return success(c, fiber.Map{"message": "Context deleted successfully"})
 }

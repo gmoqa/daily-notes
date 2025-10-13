@@ -27,7 +27,7 @@ type Config struct {
 
 func NewService(ctx context.Context, token *oauth2.Token, userID string) (*Service, error) {
 	config := &oauth2.Config{
-		Scopes: []string{drive.DriveAppdataScope},
+		Scopes: []string{drive.DriveFileScope},
 	}
 
 	client := config.Client(ctx, token)
@@ -43,17 +43,15 @@ func NewService(ctx context.Context, token *oauth2.Token, userID string) (*Servi
 }
 
 func (s *Service) getOrCreateFolder(name string, parentID string) (string, error) {
-	// Use appDataFolder as the parent if no parent is specified
-	// This ensures complete isolation per user
+	// If no parent is specified, use "root" for the user's main Drive folder
 	if parentID == "" {
-		parentID = "appDataFolder"
+		parentID = "root"
 	}
 
 	query := fmt.Sprintf("name='%s' and mimeType='application/vnd.google-apps.folder' and trashed=false and '%s' in parents", name, parentID)
 
 	fileList, err := s.client.Files.List().
 		Q(query).
-		Spaces("appDataFolder").
 		Fields("files(id, name)").
 		Do()
 	if err != nil {
@@ -89,7 +87,6 @@ func (s *Service) GetConfig() (*Config, error) {
 	query := fmt.Sprintf("name='config.json' and '%s' in parents and trashed=false", rootFolderID)
 	fileList, err := s.client.Files.List().
 		Q(query).
-		Spaces("appDataFolder").
 		Fields("files(id)").
 		Do()
 	if err != nil {
@@ -134,7 +131,6 @@ func (s *Service) SaveConfig(config *Config) error {
 	query := fmt.Sprintf("name='config.json' and '%s' in parents and trashed=false", rootFolderID)
 	fileList, err := s.client.Files.List().
 		Q(query).
-		Spaces("appDataFolder").
 		Fields("files(id)").
 		Do()
 	if err != nil {
@@ -245,7 +241,6 @@ func (s *Service) GetNote(contextName, date string) (*models.Note, error) {
 	query := fmt.Sprintf("name='%s' and '%s' in parents and trashed=false", filename, contextFolderID)
 	fileList, err := s.client.Files.List().
 		Q(query).
-		Spaces("appDataFolder").
 		Fields("files(id, createdTime, modifiedTime)").
 		Do()
 	if err != nil {
@@ -303,7 +298,6 @@ func (s *Service) UpsertNote(contextName, date, content string) (*models.Note, e
 	query := fmt.Sprintf("name='%s' and '%s' in parents and trashed=false", filename, contextFolderID)
 	fileList, err := s.client.Files.List().
 		Q(query).
-		Spaces("appDataFolder").
 		Fields("files(id, createdTime, modifiedTime)").
 		Do()
 	if err != nil {
@@ -369,7 +363,6 @@ func (s *Service) GetNotesByContext(contextName string, limit, offset int) ([]mo
 	query := fmt.Sprintf("'%s' in parents and name contains '.md' and trashed=false", contextFolderID)
 	fileList, err := s.client.Files.List().
 		Q(query).
-		Spaces("appDataFolder").
 		Fields("files(id, name, createdTime, modifiedTime)").
 		OrderBy("modifiedTime desc").
 		PageSize(int64(limit + offset)).

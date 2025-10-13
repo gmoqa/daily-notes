@@ -40,12 +40,12 @@ func GetNote(c *fiber.Ctx) error {
 
 	driveService, err := getDriveService(c)
 	if err != nil {
-		return serverError(c, "Failed to initialize Drive service")
+		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
 	}
 
 	note, err := driveService.GetNote(contextName, date)
 	if err != nil {
-		return serverError(c, "Failed to fetch note")
+		return serverErrorWithDetails(c, "Failed to fetch note", err)
 	}
 
 	if note == nil {
@@ -71,12 +71,12 @@ func UpsertNote(c *fiber.Ctx) error {
 
 	driveService, err := getDriveService(c)
 	if err != nil {
-		return serverError(c, "Failed to initialize Drive service")
+		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
 	}
 
 	note, err := driveService.UpsertNote(req.Context, req.Date, req.Content)
 	if err != nil {
-		return serverError(c, "Failed to save note")
+		return serverErrorWithDetails(c, "Failed to save note", err)
 	}
 	return success(c, fiber.Map{"note": note})
 }
@@ -99,12 +99,12 @@ func GetNotesByContext(c *fiber.Ctx) error {
 
 	driveService, err := getDriveService(c)
 	if err != nil {
-		return serverError(c, "Failed to initialize Drive service")
+		return serverErrorWithDetails(c, "Failed to initialize Drive service", err)
 	}
 
 	notes, err := driveService.GetNotesByContext(contextName, limit, offset)
 	if err != nil {
-		return serverError(c, "Failed to fetch notes")
+		return serverErrorWithDetails(c, "Failed to fetch notes", err)
 	}
 	return success(c, fiber.Map{
 		"notes":  notes,
