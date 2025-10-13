@@ -31,8 +31,10 @@ WORKDIR /root/
 
 # Copy binary from builder
 COPY --from=builder /app/main .
-COPY --from=builder /app/views ./views
 COPY --from=builder /app/static ./static
+
+# Create data directory for SQLite database
+RUN mkdir -p ./data
 
 # Expose port
 EXPOSE 3000
