@@ -1,0 +1,42 @@
+package components
+
+templ Editor() {
+	<section class="main-section section" role="region" aria-label="Note editor">
+		<div class="container is-fluid">
+			<!-- Skeleton Loader -->
+			<div class="skeleton-loader" aria-hidden="true">
+				<div class="editor-wrapper">
+					<div class="skeleton skeleton-title" style="width: 30%;"></div>
+					<div class="skeleton skeleton-text mb-2"></div>
+					<div class="skeleton skeleton-text mb-2"></div>
+					<div class="skeleton skeleton-text mb-2" style="width: 80%;"></div>
+					<div class="skeleton skeleton-text mb-2" style="width: 90%;"></div>
+					<div class="skeleton skeleton-text mb-2"></div>
+					<div class="skeleton skeleton-text mb-2" style="width: 70%;"></div>
+				</div>
+			</div>
+			<!-- Actual Content -->
+			<div class="app-content">
+				<div class="controls">
+					<label for="date-picker" class="sr-only">Select date</label>
+					<div style="position: relative; display: inline-block; width: 100%;">
+						<input type="date" id="date-picker" class="input" aria-label="Select date for note" style="color: transparent;"/>
+						<div id="date-picker-display" style="position: absolute; top: 50%; left: 12px; transform: translateY(-50%); pointer-events: none; color: var(--bulma-input-color); font-size: 1rem;"></div>
+					</div>
+				</div>
+				<div class="editor-wrapper">
+					<label for="note-editor" class="sr-only">Note content</label>
+					<textarea
+						id="note-editor"
+						class="editor-textarea"
+						placeholder="Select a context to start writing notes..."
+						aria-label="Note editor"
+						aria-describedby="save-indicator"
+						disabled
+					></textarea>
+				</div>
+				<div class="save-indicator px-5 pb-4" id="save-indicator"></div>
+			</div>
+		</div>
+	</section>
+}

@@ -16,7 +16,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/gofiber/template/jet/v2"
 )
 
 func main() {
@@ -28,13 +27,8 @@ func main() {
 	session.StartCleanupRoutine()
 	logger.Info("session cleanup routine started")
 
-	engine := jet.New("./views", ".jet")
-	if config.AppConfig.Env == "development" {
-		engine.Reload(true)
-	}
-
+	// Templ doesn't need a template engine - it renders directly
 	app := fiber.New(fiber.Config{
-		Views:                 engine,
 		ReadTimeout:           time.Second * 10,
 		WriteTimeout:          time.Second * 10,
 		IdleTimeout:           time.Second * 30,

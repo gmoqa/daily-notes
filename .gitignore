@@ -43,3 +43,6 @@ static/icons/*.png
 
 # Claude Code configuration
 .claude/
+
+# Templ generated files
+*_templ.go

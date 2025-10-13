@@ -7,6 +7,8 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 build: ## Build the application binary
+	@echo "Generating Templ templates..."
+	@templ generate
 	@echo "Building application..."
 	@go build -o bin/dailynotes main.go
 	@echo "Build complete! Binary: ./bin/dailynotes"
@@ -16,8 +18,13 @@ run: ## Run the application
 	@go run main.go
 
 dev: ## Run the application in development mode with hot reload
-	@echo "Starting development server..."
+	@echo "Starting development server with Templ watch..."
+	@echo "Run 'templ generate --watch' in a separate terminal for hot template reload"
 	@air || go run main.go
+
+templ-watch: ## Watch and regenerate Templ templates on change
+	@echo "Watching Templ templates..."
+	@templ generate --watch
 
 test: ## Run tests
 	@echo "Running tests..."
@@ -49,6 +56,8 @@ docker-logs: ## Show Docker container logs
 
 # Production deployment targets
 prod-build: ## Build production binary
+	@echo "Generating Templ templates..."
+	@templ generate
 	@echo "Building production binary..."
 	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags="-w -s" -o bin/dailynotes-linux main.go
 	@echo "Production build complete!"

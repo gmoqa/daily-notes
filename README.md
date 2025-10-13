@@ -42,11 +42,13 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for complete setup instructions.
 
 ## Tech Stack
 
-- Go + Fiber
-- Vanilla JavaScript (ES6 modules)
-- Google Drive API (CSV storage)
-- Google OAuth 2.0
-- Bulma CSS
+- **Backend**: Go + Fiber
+- **Templates**: Templ (type-safe Go templates)
+- **Frontend**: Vanilla JavaScript (ES6 modules)
+- **Storage**: Google Drive API (CSV format)
+- **Auth**: Google OAuth 2.0
+- **Styling**: Bulma CSS
+- **PWA**: Service Worker + IndexedDB
 
 ## Data Storage
 

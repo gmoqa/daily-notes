@@ -1,0 +1,94 @@
+package components
+
+templ CalendarPanel() {
+	<aside class="calendar-panel" role="complementary" aria-label="Calendar and user settings" style="background: var(--bulma-scheme-main-bis);">
+		<!-- Mobile Close Button -->
+		<button class="mobile-panel-close" id="calendar-close" aria-label="Close calendar">
+			<span class="material-symbols-outlined">close</span>
+		</button>
+		<!-- Skeleton Loader -->
+		<div class="skeleton-loader p-5" aria-hidden="true">
+			<div class="is-flex is-justify-content-space-between mb-4">
+				<div style="flex: 1;">
+					<div class="skeleton skeleton-title mb-2" style="width: 60%;"></div>
+					<div class="skeleton skeleton-text" style="width: 80%;"></div>
+				</div>
+				<div class="skeleton skeleton-circle" style="width: 3rem; height: 3rem;"></div>
+			</div>
+			<hr/>
+			<div class="skeleton skeleton-text mb-4" style="width: 50%; margin: 0 auto;"></div>
+			<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.25rem;">
+				<div class="skeleton" style="aspect-ratio: 1;"></div>
+				<div class="skeleton" style="aspect-ratio: 1;"></div>
+				<div class="skeleton" style="aspect-ratio: 1;"></div>
+				<div class="skeleton" style="aspect-ratio: 1;"></div>
+				<div class="skeleton" style="aspect-ratio: 1;"></div>
+				<div class="skeleton" style="aspect-ratio: 1;"></div>
+				<div class="skeleton" style="aspect-ratio: 1;"></div>
+			</div>
+		</div>
+		<!-- Actual Content -->
+		<div class="app-content">
+			<div class="content">
+				<div class="mb-4">
+					<div class="is-flex is-justify-content-space-between is-align-items-center">
+						<div>
+							<p class="title is-4 mb-1" id="current-time">00:00:00</p>
+							<p class="subtitle is-6 mb-0 has-text-grey" id="current-date">Loading...</p>
+						</div>
+						<button id="theme-toggle-menu" class="button" style="font-size: 1.5rem; padding: 0.5rem;" title="Toggle theme">
+							<span class="material-symbols-outlined">dark_mode</span>
+						</button>
+					</div>
+				</div>
+				<hr/>
+				<div class="is-flex is-justify-content-space-between is-align-items-center mb-4">
+					<button class="button is-small is-ghost" id="prev-month">
+						<span class="material-symbols-outlined">chevron_left</span>
+					</button>
+					<p class="title is-6 mb-0" id="calendar-month-year"></p>
+					<button class="button is-small is-ghost" id="next-month">
+						<span class="material-symbols-outlined">chevron_right</span>
+					</button>
+				</div>
+				<div class="calendar-grid" id="calendar-grid"></div>
+			</div>
+		</div>
+		<div class="user-settings-btn">
+			<div class="dropdown is-up is-fullwidth" id="user-dropdown">
+				<div class="dropdown-trigger is-fullwidth">
+					<button class="button is-small is-fullwidth is-justify-content-space-between" aria-haspopup="true" aria-controls="user-dropdown-menu" id="user-dropdown-button">
+						<span class="icon is-small">
+							<span class="material-symbols-outlined" style="font-size: 18px;">account_circle</span>
+						</span>
+						<span id="user-email" style="flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 0.5rem;">Loading...</span>
+						<span class="icon is-small" id="user-dropdown-icon">
+							<span class="material-symbols-outlined" style="font-size: 18px;">expand_less</span>
+						</span>
+					</button>
+				</div>
+				<div class="dropdown-menu is-fullwidth" id="user-dropdown-menu" role="menu">
+					<div class="dropdown-content">
+						<a class="dropdown-item" id="settings-menu-item">
+							<span class="icon-text" style="display: flex; align-items: center; gap: 0.5rem;">
+								<span class="icon is-small" style="margin: 0;">
+									<span class="material-symbols-outlined" style="font-size: 16px;">settings</span>
+								</span>
+								<span>Settings</span>
+							</span>
+						</a>
+						<hr class="dropdown-divider"/>
+						<a class="dropdown-item" id="signout-menu-item">
+							<span class="icon-text" style="display: flex; align-items: center; gap: 0.5rem;">
+								<span class="icon is-small" style="margin: 0;">
+									<span class="material-symbols-outlined" style="font-size: 16px;">logout</span>
+								</span>
+								<span>Logout</span>
+							</span>
+						</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</aside>
+}

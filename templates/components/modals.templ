@@ -1,0 +1,190 @@
+package components
+
+templ Modals() {
+	<!-- Context Modal -->
+	<div class="modal" id="context-modal">
+		<div class="modal-background" onclick="closeContextModal()"></div>
+		<div class="modal-card">
+			<header class="modal-card-head">
+				<p class="modal-card-title">New Context</p>
+				<button class="delete" aria-label="close" onclick="closeContextModal()"></button>
+			</header>
+			<section class="modal-card-body">
+				<div class="field">
+					<label class="label">Name</label>
+					<div class="control">
+						<input type="text" class="input" id="context-name" placeholder="e.g., Acme Corp, Project Alpha" autofocus/>
+					</div>
+				</div>
+				<div class="field">
+					<label class="label">Color</label>
+					<div class="control">
+						<input type="color" class="input" id="context-color" value="#485fc7"/>
+					</div>
+				</div>
+			</section>
+			<footer class="modal-card-foot is-flex is-justify-content-flex-end">
+				<button onclick="closeContextModal()" class="button">Cancel</button>
+				<button onclick="createContext()" class="button is-primary">
+					<span class="icon">
+						<span class="material-symbols-outlined">add</span>
+					</span>
+					<span>Create</span>
+				</button>
+			</footer>
+		</div>
+	</div>
+	<!-- Settings Modal -->
+	<div class="modal" id="settings-modal">
+		<div class="modal-background" onclick="closeSettingsModal()"></div>
+		<div class="modal-card" style="max-width: 500px;">
+			<header class="modal-card-head" style="padding: 1rem 1.5rem;">
+				<p class="modal-card-title" style="font-size: 1rem; font-weight: 600;">Settings</p>
+				<button class="delete is-small" aria-label="close" onclick="closeSettingsModal()"></button>
+			</header>
+			<section class="modal-card-body">
+				<div class="field is-horizontal">
+					<div class="field-label is-small">
+						<label class="label">Week Start</label>
+					</div>
+					<div class="field-body">
+						<div class="field">
+							<div class="control">
+								<div class="select is-small is-fullwidth">
+									<select id="week-start-select">
+										<option value="0">Sunday</option>
+										<option value="1">Monday</option>
+										<option value="2">Tuesday</option>
+										<option value="3">Wednesday</option>
+										<option value="4">Thursday</option>
+										<option value="5">Friday</option>
+										<option value="6">Saturday</option>
+									</select>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="field is-horizontal">
+					<div class="field-label is-small">
+						<label class="label">Timezone</label>
+					</div>
+					<div class="field-body">
+						<div class="field">
+							<div class="control">
+								<div class="select is-small is-fullwidth">
+									<select id="timezone-select">
+										<option value="UTC">UTC</option>
+										<optgroup label="Americas">
+											<option value="America/New_York">New York (EST/EDT)</option>
+											<option value="America/Chicago">Chicago (CST/CDT)</option>
+											<option value="America/Denver">Denver (MST/MDT)</option>
+											<option value="America/Los_Angeles">Los Angeles (PST/PDT)</option>
+											<option value="America/Mexico_City">Mexico City</option>
+											<option value="America/Bogota">Bogotá</option>
+											<option value="America/Lima">Lima</option>
+											<option value="America/Santiago">Santiago</option>
+											<option value="America/Buenos_Aires">Buenos Aires</option>
+											<option value="America/Sao_Paulo">São Paulo</option>
+											<option value="America/Caracas">Caracas</option>
+										</optgroup>
+										<optgroup label="Europe">
+											<option value="Europe/London">London (GMT/BST)</option>
+											<option value="Europe/Paris">Paris (CET/CEST)</option>
+											<option value="Europe/Berlin">Berlin (CET/CEST)</option>
+											<option value="Europe/Madrid">Madrid (CET/CEST)</option>
+											<option value="Europe/Rome">Rome (CET/CEST)</option>
+											<option value="Europe/Moscow">Moscow (MSK)</option>
+										</optgroup>
+										<optgroup label="Asia">
+											<option value="Asia/Dubai">Dubai (GST)</option>
+											<option value="Asia/Kolkata">Mumbai/Delhi (IST)</option>
+											<option value="Asia/Shanghai">Shanghai (CST)</option>
+											<option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+											<option value="Asia/Tokyo">Tokyo (JST)</option>
+											<option value="Asia/Seoul">Seoul (KST)</option>
+											<option value="Asia/Singapore">Singapore (SGT)</option>
+										</optgroup>
+										<optgroup label="Pacific">
+											<option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
+											<option value="Australia/Melbourne">Melbourne (AEDT/AEST)</option>
+											<option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
+										</optgroup>
+									</select>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="field is-horizontal">
+					<div class="field-label is-small">
+						<label class="label">Date Format</label>
+					</div>
+					<div class="field-body">
+						<div class="field">
+							<div class="control">
+								<div class="select is-small is-fullwidth">
+									<select id="date-format-select">
+										<option value="DD-MM-YY">DD-MM-YY (24-10-25)</option>
+										<option value="MM-DD-YY">MM-DD-YY (10-24-25)</option>
+									</select>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="field is-horizontal">
+					<div class="field-label is-small">
+						<label class="label">Unique Context Mode</label>
+					</div>
+					<div class="field-body">
+						<div class="field">
+							<div class="control">
+								<label class="switch">
+									<input type="checkbox" id="unique-context-mode-switch"/>
+									<span class="slider round"></span>
+								</label>
+								<p class="help is-size-7" style="margin-top: 0.5rem;">Hide context selector and use your first context automatically</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+			<footer class="modal-card-foot is-flex is-justify-content-flex-end" style="gap: 0.75rem; padding: 1rem 1.5rem;">
+				<button onclick="closeSettingsModal()" class="button is-small" id="settings-cancel-btn">Cancel</button>
+				<button onclick="saveSettings()" class="button is-small is-primary" id="settings-save-btn" style="color: white;">
+					<span class="icon is-small" id="settings-save-icon">
+						<span class="material-symbols-outlined" style="font-size: 16px;">check</span>
+					</span>
+					<span class="spinner" id="settings-save-spinner" style="display: none;"></span>
+					<span id="settings-save-text">Save</span>
+				</button>
+			</footer>
+		</div>
+	</div>
+	<!-- Onboarding Modal -->
+	<div class="modal" id="onboarding-modal">
+		<div class="modal-background"></div>
+		<div class="modal-card">
+			<header class="modal-card-head">
+				<p class="modal-card-title">Welcome to dailynotes.dev</p>
+			</header>
+			<section class="modal-card-body">
+				<div class="content">
+					<h4>Quick Start Guide</h4>
+					<p><strong>1. Create a Context</strong><br/>
+					Contexts help you organize notes by project or client. Click "+ New Context" to get started.</p>
+					<p><strong>2. Write Notes</strong><br/>
+					Select a context and start writing. Notes auto-save locally and sync to your Google Drive every 15 seconds.</p>
+					<p><strong>3. Navigate</strong><br/>
+					Use the calendar or notes list to browse previous entries. Your last used context is automatically selected when you return.</p>
+					<p><strong>4. Offline-First</strong><br/>
+					The app works without internet. Changes sync automatically when you're back online.</p>
+				</div>
+			</section>
+			<footer class="modal-card-foot is-justify-content-center">
+				<button onclick="closeOnboardingModal()" class="button is-primary">Got it!</button>
+			</footer>
+		</div>
+	</div>
+}

@@ -2,34 +2,17 @@ package handlers
 
 import (
 	"daily-notes/config"
-	"daily-notes/session"
+	"daily-notes/templates/pages"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func HomePage(c *fiber.Ctx) error {
-	var userID, userEmail, userName, userPicture string
-	sessionID := c.Cookies("session_id")
-
-	if sessionID != "" {
-		sess, err := session.Get(sessionID)
-		if err == nil && sess != nil {
-			userID = sess.UserID
-			userEmail = sess.Email
-			userName = sess.Name
-			userPicture = sess.Picture
-		}
-	}
-
-	return c.Render("index", fiber.Map{
-		"IsAuthenticated": userID != "",
-		"UserID":          userID,
-		"UserEmail":       userEmail,
-		"UserName":        userName,
-		"UserPicture":     userPicture,
-		"GoogleClientID":  config.AppConfig.GoogleClientID,
-	})
+	// Set HTML content type
+	c.Set("Content-Type", "text/html; charset=utf-8")
+	// Render with Templ
+	return pages.Index(config.AppConfig.GoogleClientID).Render(c.Context(), c.Response().BodyWriter())
 }
 
 func ServerTime(c *fiber.Ctx) error {

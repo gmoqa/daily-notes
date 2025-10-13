@@ -1,0 +1,48 @@
+package components
+
+templ MobileNavigation() {
+	<!-- Mobile Navigation -->
+	<nav class="mobile-nav" aria-label="Mobile navigation">
+		<div class="mobile-nav-actions" id="mobile-context-selector">
+			<div class="field" style="margin: 0; flex: 1;">
+				<div class="control context-select-wrapper">
+					<div class="context-color-indicator" id="mobile-context-color-indicator" role="presentation" aria-hidden="true"></div>
+					<select id="mobile-context-select" class="context-select" required aria-label="Select project context">
+						<option value="">Select context...</option>
+					</select>
+				</div>
+			</div>
+			<button onclick="showNewContextModal()" class="button is-primary is-small" style="color: white; white-space: nowrap;" title="New context" id="mobile-new-context-btn">
+				<span class="icon is-small">
+					<span class="material-symbols-outlined">add</span>
+				</span>
+				<span>New</span>
+			</button>
+		</div>
+		<div class="mobile-nav-buttons">
+			<button id="mobile-notes-toggle" class="mobile-nav-button" aria-label="Toggle notes list" title="Notes">
+				<span class="material-symbols-outlined">list</span>
+			</button>
+			<button id="mobile-calendar-toggle" class="mobile-nav-button" aria-label="Toggle calendar" title="Calendar">
+				<span class="material-symbols-outlined">calendar_month</span>
+			</button>
+		</div>
+	</nav>
+	<!-- Mobile Overlays -->
+	<div class="sidebar-overlay" id="sidebar-overlay"></div>
+	<div class="calendar-overlay" id="calendar-overlay"></div>
+}
+
+templ SyncStatus() {
+	<div id="sync-status" class="sync-status">
+		<div class="spinner"></div>
+		<span id="sync-status-text">Syncing...</span>
+	</div>
+}
+
+templ LandingLoader() {
+	<div id="landing-loader" class="landing-loader">
+		<div class="spinner-large"></div>
+		<p>Signing in...</p>
+	</div>
+}

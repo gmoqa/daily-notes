@@ -1,0 +1,95 @@
+package layouts
+
+script initGoogleClientID(googleClientID string) {
+	window.__GOOGLE_CLIENT_ID__ = googleClientID;
+}
+
+templ Base(title string, googleClientID string) {
+	<!DOCTYPE html>
+	<html lang="en" data-theme="dark">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+			<meta name="google-client-id" content={ googleClientID }/>
+			<title>{ title }</title>
+			<meta name="description" content="Minimalist offline-first PWA for daily work notes. Organize by context, sync with Google Drive."/>
+			<link rel="manifest" href="/static/manifest.json"/>
+			<meta name="theme-color" content="#485fc7" media="(prefers-color-scheme: light)"/>
+			<meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)"/>
+			<meta name="apple-mobile-web-app-capable" content="yes"/>
+			<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+			<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png"/>
+			<link rel="icon" href="/static/icons/icon-72x72.png"/>
+			<script type="text/javascript">
+				// Initialize theme immediately to prevent flash
+				const theme = localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+				document.documentElement.setAttribute('data-theme', theme);
+			</script>
+			@initGoogleClientID(googleClientID)
+			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css"/>
+			<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"/>
+			<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"/>
+			<link rel="stylesheet" href="/static/css/styles.css"/>
+			<link rel="stylesheet" href="/static/css/app.css"/>
+			<style>
+				/* Minimal inline styles for critical rendering */
+				/* Critical CSS for preventing layout shift */
+				#auth-section { display: none; }
+				#auth-section.visible { display: flex; }
+				#app-section { display: block; height: 100%; }
+
+				/* Skeleton states - must be inline for initial render */
+				.skeleton-loader { display: none; }
+				#app-section:not(.visible) .skeleton-loader { display: block; }
+				#app-section.visible .skeleton-loader { display: none !important; }
+				#app-section:not(.visible) .app-content { display: none; }
+				#app-section.visible .app-content { display: block; }
+
+				/* Landing loader - hidden by default */
+				#landing-loader { display: none !important; }
+				#landing-loader.visible { display: flex !important; }
+			</style>
+		</head>
+		<body>
+			<!-- Skip to main content link for accessibility -->
+			<a href="#main-content" class="skip-link">Skip to main content</a>
+			{ children... }
+			<!-- Service Worker registration -->
+			<script src="https://accounts.google.com/gsi/client" async defer></script>
+			<script type="module" src="/static/js/main.js"></script>
+			<script>
+				// Service Worker registration
+				if ('serviceWorker' in navigator) {
+					navigator.serviceWorker.register('/static/sw.js');
+				}
+
+				// Landing page theme toggle
+				document.addEventListener('DOMContentLoaded', () => {
+					const themeToggle = document.getElementById('landing-theme-toggle');
+					if (themeToggle) {
+						const updateThemeIcon = (theme) => {
+							const icon = themeToggle.querySelector('.material-symbols-outlined');
+							if (icon) {
+								icon.textContent = theme === 'dark' ? 'light_mode' : 'dark_mode';
+							}
+						};
+
+						// Set initial icon
+						const currentTheme = document.documentElement.getAttribute('data-theme');
+						updateThemeIcon(currentTheme);
+
+						// Handle click
+						themeToggle.addEventListener('click', () => {
+							const currentTheme = document.documentElement.getAttribute('data-theme');
+							const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+							document.documentElement.setAttribute('data-theme', newTheme);
+							localStorage.setItem('theme', newTheme);
+							updateThemeIcon(newTheme);
+						});
+					}
+				});
+			</script>
+		</body>
+	</html>
+}

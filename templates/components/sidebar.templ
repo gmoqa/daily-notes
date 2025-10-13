@@ -1,0 +1,49 @@
+package components
+
+templ Sidebar() {
+	<aside class="sidebar" role="navigation" aria-label="Notes sidebar" style="background: var(--bulma-scheme-main-bis);">
+		<!-- Mobile Close Button -->
+		<button class="mobile-panel-close" id="sidebar-close" aria-label="Close sidebar">
+			<span class="material-symbols-outlined">close</span>
+		</button>
+		<!-- Skeleton Loader -->
+		<div class="skeleton-loader p-4" aria-hidden="true">
+			<div class="skeleton skeleton-button mb-3"></div>
+			<div class="skeleton skeleton-button mb-4"></div>
+			<div class="skeleton skeleton-text" style="width: 40%;"></div>
+			<div class="skeleton skeleton-text mb-3"></div>
+			<div class="skeleton skeleton-text mb-3"></div>
+			<div class="skeleton skeleton-text mb-3"></div>
+			<div class="skeleton skeleton-text mb-3"></div>
+			<div class="skeleton skeleton-text" style="width: 60%;"></div>
+		</div>
+		<!-- Actual Content -->
+		<div class="app-content">
+			<div class="p-4" id="desktop-context-selector">
+				<div class="field">
+					<label for="context-select" class="sr-only">Select context</label>
+					<div class="control context-select-wrapper">
+						<div class="context-color-indicator" id="context-color-indicator" role="presentation" aria-hidden="true"></div>
+						<select id="context-select" class="context-select" required aria-label="Select project context">
+							<option value="">Select context...</option>
+						</select>
+					</div>
+				</div>
+				<button onclick="showNewContextModal()" class="button is-primary is-small is-fullwidth" style="color: white;">
+					<span class="icon">
+						<span class="material-symbols-outlined">add</span>
+					</span>
+					<span>New context</span>
+				</button>
+			</div>
+			<div class="sidebar-content">
+				<nav class="menu" aria-label="Notes list">
+					<p class="menu-label">Notes</p>
+					<ul class="menu-list" id="notes-list" role="list">
+						<li class="has-text-centered py-6 has-text-grey-light" role="listitem">Select a context to view notes</li>
+					</ul>
+				</nav>
+			</div>
+		</div>
+	</aside>
+}

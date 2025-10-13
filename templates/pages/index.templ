@@ -1,0 +1,23 @@
+package pages
+
+import (
+	"daily-notes/templates/layouts"
+	"daily-notes/templates/components"
+)
+
+templ Index(googleClientID string) {
+	@layouts.Base("dailynotes", googleClientID) {
+		@components.AuthSection()
+		<section id="app-section" role="main" aria-label="Application">
+			@components.MobileNavigation()
+			<div class="app-layout" id="main-content">
+				@components.Sidebar()
+				@components.Editor()
+				@components.CalendarPanel()
+			</div>
+		</section>
+		@components.SyncStatus()
+		@components.LandingLoader()
+		@components.Modals()
+	}
+}
