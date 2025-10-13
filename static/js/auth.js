@@ -112,14 +112,59 @@ class AuthManager {
                 google.accounts.oauth2.revoke(this.tokenClient.access_token);
             }
 
+            // Clear all caches
+            await this.clearAllCaches();
+
             events.emit('auth-logout');
 
             setTimeout(() => {
                 state.set('isLoggingOut', false);
-            }, 1000);
+                // Force full page reload to ensure clean state
+                window.location.reload(true);
+            }, 500);
         } catch (error) {
             state.set('isLoggingOut', false);
             events.emit(EVENT.SHOW_ERROR, 'Logout failed');
+        }
+    }
+
+    async clearAllCaches() {
+        try {
+            // Clear IndexedDB
+            const dbName = 'DailyNotesDB';
+            const deleteRequest = indexedDB.deleteDatabase(dbName);
+
+            await new Promise((resolve, reject) => {
+                deleteRequest.onsuccess = () => {
+                    console.log('[AUTH] IndexedDB cleared');
+                    resolve();
+                };
+                deleteRequest.onerror = () => {
+                    console.warn('[AUTH] Failed to clear IndexedDB');
+                    resolve(); // Continue even if this fails
+                };
+            });
+
+            // Clear all Service Worker caches
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                await Promise.all(
+                    cacheNames.map(cacheName => {
+                        console.log('[AUTH] Deleting cache:', cacheName);
+                        return caches.delete(cacheName);
+                    })
+                );
+                console.log('[AUTH] All Service Worker caches cleared');
+            }
+
+            // Clear localStorage and sessionStorage
+            localStorage.clear();
+            sessionStorage.clear();
+            console.log('[AUTH] Storage cleared');
+
+        } catch (error) {
+            console.error('[AUTH] Error clearing caches:', error);
+            // Don't throw - we still want to complete logout
         }
     }
 }
