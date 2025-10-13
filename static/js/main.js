@@ -186,18 +186,6 @@ class Application {
             }
 
             console.log('[MAIN] App initialization complete');
-
-            // Show welcome notification on first load (optional)
-            const hasSeenWelcome = localStorage.getItem('welcome_shown');
-            if (!hasSeenWelcome) {
-                setTimeout(() => {
-                    notifications.info('Welcome to dailynotes.dev! Start by creating a context.', {
-                        title: 'Welcome',
-                        duration: 8000
-                    });
-                    localStorage.setItem('welcome_shown', 'true');
-                }, 1000);
-            }
         } catch (error) {
             console.error('[MAIN] Error initializing app:', error);
             notifications.error('Failed to initialize app. Please refresh the page.', {
