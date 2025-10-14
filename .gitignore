@@ -13,7 +13,7 @@ daily-notes
 *.out
 
 # Dependency directories
-vendor/
+# vendor/ - including third-party assets for consistency
 
 # Go workspace file
 go.work
