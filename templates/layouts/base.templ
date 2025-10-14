@@ -12,14 +12,30 @@ templ Base(title string, googleClientID string) {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 			<meta name="google-client-id" content={ googleClientID }/>
 			<title>{ title }</title>
-			<meta name="description" content="Minimalist offline-first PWA for daily work notes. Organize by context, sync with Google Drive."/>
-			<link rel="manifest" href="/static/manifest.json"/>
-			<meta name="theme-color" content="#485fc7" media="(prefers-color-scheme: light)"/>
-			<meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)"/>
+			<meta name="description" content="Minimalist workspace for tracking daily progress. Works offline, syncs to Google Drive, organized by projects."/>
+			<!-- Open Graph / Facebook -->
+			<meta property="og:type" content="website"/>
+			<meta property="og:url" content="https://dailynotes.dev/"/>
+			<meta property="og:title" content="dailynotes.dev - Your daily work notes, organized & synced"/>
+			<meta property="og:description" content="Minimalist workspace for tracking daily progress. Works offline, syncs to Google Drive, organized by projects. Written in Go • Free Forever."/>
+			<meta property="og:image" content="https://dailynotes.dev/static/images/og-image.png"/>
+			<!-- Twitter -->
+			<meta property="twitter:card" content="summary_large_image"/>
+			<meta property="twitter:url" content="https://dailynotes.dev/"/>
+			<meta property="twitter:title" content="dailynotes.dev - Your daily work notes, organized & synced"/>
+			<meta property="twitter:description" content="Minimalist workspace for tracking daily progress. Works offline, syncs to Google Drive, organized by projects. Written in Go • Free Forever."/>
+			<meta property="twitter:image" content="https://dailynotes.dev/static/images/og-image.png"/>
+			<!-- Favicons -->
+			<link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96"/>
+			<link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg"/>
+			<link rel="shortcut icon" href="/static/favicon/favicon.ico"/>
+			<link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png"/>
+			<meta name="apple-mobile-web-app-title" content="Dailynotes"/>
 			<meta name="apple-mobile-web-app-capable" content="yes"/>
 			<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-			<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png"/>
-			<link rel="icon" href="/static/icons/icon-72x72.png"/>
+			<link rel="manifest" href="/static/favicon/site.webmanifest"/>
+			<meta name="theme-color" content="#485fc7" media="(prefers-color-scheme: light)"/>
+			<meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)"/>
 			<script type="text/javascript">
 				// Initialize theme immediately to prevent flash
 				const theme = localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
