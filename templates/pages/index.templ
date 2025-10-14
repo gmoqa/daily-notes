@@ -6,7 +6,7 @@ import (
 )
 
 templ Index(googleClientID string) {
-	@layouts.Base("dailynotes", googleClientID) {
+	@layouts.Base("dailynotes.dev - Your daily work notes, organized & synced", googleClientID) {
 		@components.AuthSection()
 		<section id="app-section" role="main" aria-label="Application">
 			@components.MobileNavigation()
