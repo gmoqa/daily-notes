@@ -12,6 +12,27 @@
 }
 
 /* ==========================================
+   MATERIAL SYMBOLS - PREVENT TEXT FLASH
+   ========================================== */
+/* Hide icon text content until the font is fully loaded */
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    /* Prevent text fallback from showing */
+    text-indent: -9999px;
+    overflow: hidden;
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    line-height: 1;
+}
+
+/* Reset once font is loaded - handled by body.loaded class */
+body.loaded .material-symbols-outlined {
+    text-indent: 0;
+    overflow: visible;
+}
+
+/* ==========================================
    APP LAYOUT
    ========================================== */
 #app-section {

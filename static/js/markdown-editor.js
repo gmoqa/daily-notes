@@ -122,9 +122,32 @@ class MarkdownEditor {
                     this.editor.root.dataset.placeholder = 'Start writing your notes...';
                 }
             });
+
+            // Apply toolbar visibility based on user settings after initialization
+            this.applyToolbarVisibility();
         } catch (error) {
             console.error('[MarkdownEditor] Error initializing editor:', error);
         }
+    }
+
+    applyToolbarVisibility() {
+        // Import state dynamically to avoid circular dependencies
+        import('./state.js').then(({ state }) => {
+            const settings = state.get('userSettings');
+            const showMarkdownEditor = settings.showMarkdownEditor === true;
+
+            const toolbar = this.container?.querySelector('.ql-toolbar');
+            if (toolbar) {
+                toolbar.style.display = showMarkdownEditor ? '' : 'none';
+            }
+
+            // Also set editor enabled state
+            if (this.editor) {
+                const context = state.get('selectedContext');
+                const shouldBeEnabled = showMarkdownEditor && context;
+                this.editor.enable(shouldBeEnabled);
+            }
+        });
     }
 
     getMarkdown() {
