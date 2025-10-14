@@ -21,8 +21,9 @@ class NotesManager {
 
         // Try local cache first (instant load)
         const cachedNote = await cache.getNote(context, date);
-        if (cachedNote) {
-            this.currentNoteContent = cachedNote.content || '';
+        if (cachedNote && cachedNote.content) {
+            // Only emit if cache has actual content
+            this.currentNoteContent = cachedNote.content;
             events.emit(EVENT.NOTE_LOADED, {
                 content: this.currentNoteContent,
                 fromCache: true
@@ -41,6 +42,7 @@ class NotesManager {
                 content: note.content
             });
 
+            // Always emit from server (authoritative source)
             events.emit(EVENT.NOTE_LOADED, {
                 content: this.currentNoteContent,
                 fromCache: false
