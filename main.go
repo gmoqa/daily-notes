@@ -133,6 +133,7 @@ func main() {
 	api.Get("/notes/list", handlers.GetNotesByContext)
 	api.Delete("/notes/:id", handlers.DeleteNote)
 	api.Put("/settings", handlers.UpdateSettings)
+	api.Post("/sync/drive", handlers.SyncFromDrive)
 
 	logger.Info("starting server", "port", config.AppConfig.Port, "env", config.AppConfig.Env)
 
