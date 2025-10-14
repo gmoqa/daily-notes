@@ -15,6 +15,7 @@ import { calendar } from './calendar.js';
 import { ui } from './ui.js';
 import { notifications } from './notifications.js';
 import { loading } from './loading.js';
+import { markdownEditor } from './markdown-editor.js';
 
 class Application {
     constructor() {
@@ -41,6 +42,11 @@ class Application {
 
         // Initialize UI
         ui.init();
+
+        // Initialize Markdown Editor
+        markdownEditor.init('markdown-editor-container', (content) => {
+            notes.handleNoteInput(content);
+        });
 
         // Check authentication
         const isAuthenticated = await auth.checkAuth();
@@ -83,11 +89,7 @@ class Application {
 
         // Note events
         events.on(EVENT.NOTE_LOADED, (e) => {
-            const editor = ui.elements.noteEditor;
-            if (editor) {
-                editor.value = e.detail.content;
-                ui.autoExpandTextarea(editor);
-            }
+            markdownEditor.setContent(e.detail.content);
         });
 
         events.on(EVENT.NOTE_SAVED, () => {
@@ -110,10 +112,7 @@ class Application {
                 const selectedDate = state.get('selectedDate');
                 await notes.loadNote(context, selectedDate);
             } else {
-                const editor = ui.elements.noteEditor;
-                if (editor) {
-                    editor.value = '';
-                }
+                markdownEditor.setContent('');
             }
         });
 
@@ -140,8 +139,7 @@ class Application {
         events.on('auth-logout', () => {
             ui.hideApp();
             this.syncQueue.clear();
-            const editor = ui.elements.noteEditor;
-            if (editor) editor.value = '';
+            markdownEditor.setContent('');
         });
 
         // UI events
@@ -263,12 +261,16 @@ class Application {
             const timezoneSelect = document.getElementById('timezone-select');
             const dateFormatSelect = document.getElementById('date-format-select');
             const uniqueContextModeSwitch = document.getElementById('unique-context-mode-switch');
+            const showBreadcrumbSwitch = document.getElementById('show-breadcrumb-switch');
+            const showMarkdownEditorSwitch = document.getElementById('show-markdown-editor-switch');
             const currentSettings = state.get('userSettings');
 
             const weekStart = parseInt(weekStartSelect?.value || '0');
             const timezone = timezoneSelect?.value || 'UTC';
             const dateFormat = dateFormatSelect?.value || 'DD-MM-YY';
             const uniqueContextMode = uniqueContextModeSwitch?.checked || false;
+            const showBreadcrumb = showBreadcrumbSwitch?.checked !== false;
+            const showMarkdownEditor = showMarkdownEditorSwitch?.checked !== false;
             const theme = currentSettings.theme || 'dark'; // Keep current theme
 
             // Show loading state
@@ -279,9 +281,9 @@ class Application {
             if (saveText) saveText.textContent = 'Saving...';
 
             try {
-                await api.updateSettings({ theme, weekStart, timezone, dateFormat, uniqueContextMode });
+                await api.updateSettings({ theme, weekStart, timezone, dateFormat, uniqueContextMode, showBreadcrumb, showMarkdownEditor });
 
-                state.set('userSettings', { theme, weekStart, timezone, dateFormat, uniqueContextMode });
+                state.set('userSettings', { theme, weekStart, timezone, dateFormat, uniqueContextMode, showBreadcrumb, showMarkdownEditor });
                 calendar.render();
 
                 // Show success state briefly
@@ -302,6 +304,10 @@ class Application {
 
                 // Update UI based on unique context mode
                 ui.updateContextSelectorVisibility();
+
+                // Update breadcrumb and markdown editor visibility
+                ui.updateBreadcrumbVisibility();
+                ui.updateMarkdownEditorVisibility();
 
                 // If unique context mode is enabled, select first context
                 if (uniqueContextMode) {
@@ -359,7 +365,8 @@ if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
         calendar,
         auth,
         api,
-        cache
+        cache,
+        markdownEditor
     };
     console.log('Debug mode enabled. Access modules via window.__DEBUG__');
 }

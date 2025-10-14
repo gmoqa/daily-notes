@@ -8,7 +8,7 @@ class StateManager {
         this._state = {
             // User state
             currentUser: null,
-            userSettings: { theme: 'dark', weekStart: 0, timezone: 'UTC', dateFormat: 'DD-MM-YY' },
+            userSettings: { theme: 'dark', weekStart: 0, timezone: 'UTC', dateFormat: 'DD-MM-YY', showBreadcrumb: true, showMarkdownEditor: true },
 
             // Selection state
             selectedContext: null,

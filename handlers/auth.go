@@ -239,11 +239,13 @@ func UpdateSettings(c *fiber.Ctx) error {
 	}
 
 	settings := models.UserSettings{
-		Theme:             req.Theme,
-		WeekStart:         req.WeekStart,
-		Timezone:          req.Timezone,
-		DateFormat:        req.DateFormat,
-		UniqueContextMode: req.UniqueContextMode,
+		Theme:              req.Theme,
+		WeekStart:          req.WeekStart,
+		Timezone:           req.Timezone,
+		DateFormat:         req.DateFormat,
+		UniqueContextMode:  req.UniqueContextMode,
+		ShowBreadcrumb:     req.ShowBreadcrumb,
+		ShowMarkdownEditor: req.ShowMarkdownEditor,
 	}
 
 	// Update in local database

@@ -3,11 +3,13 @@ package models
 import "time"
 
 type UserSettings struct {
-	Theme             string `json:"theme"`
-	WeekStart         int    `json:"weekStart"`
-	Timezone          string `json:"timezone"`
-	DateFormat        string `json:"dateFormat"`
-	UniqueContextMode bool   `json:"uniqueContextMode"`
+	Theme                string `json:"theme"`
+	WeekStart            int    `json:"weekStart"`
+	Timezone             string `json:"timezone"`
+	DateFormat           string `json:"dateFormat"`
+	UniqueContextMode    bool   `json:"uniqueContextMode"`
+	ShowBreadcrumb       bool   `json:"showBreadcrumb"`
+	ShowMarkdownEditor   bool   `json:"showMarkdownEditor"`
 }
 
 type User struct {
@@ -22,11 +24,13 @@ type User struct {
 }
 
 type UpdateSettingsRequest struct {
-	Theme             string `json:"theme"`
-	WeekStart         int    `json:"weekStart"`
-	Timezone          string `json:"timezone"`
-	DateFormat        string `json:"dateFormat"`
-	UniqueContextMode bool   `json:"uniqueContextMode"`
+	Theme                string `json:"theme"`
+	WeekStart            int    `json:"weekStart"`
+	Timezone             string `json:"timezone"`
+	DateFormat           string `json:"dateFormat"`
+	UniqueContextMode    bool   `json:"uniqueContextMode"`
+	ShowBreadcrumb       bool   `json:"showBreadcrumb"`
+	ShowMarkdownEditor   bool   `json:"showMarkdownEditor"`
 }
 
 type Note struct {

@@ -21,7 +21,7 @@ type Service struct {
 }
 
 type Config struct {
-	Contexts []models.Context     `json:"contexts"`
+	Contexts []models.Context    `json:"contexts"`
 	Settings models.UserSettings `json:"settings"`
 }
 
@@ -79,7 +79,7 @@ func (s *Service) getOrCreateFolder(name string, parentID string) (string, error
 }
 
 func (s *Service) GetConfig() (*Config, error) {
-	rootFolderID, err := s.getOrCreateFolder("daily-notes", "")
+	rootFolderID, err := s.getOrCreateFolder("dailynotes.dev", "")
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (s *Service) GetConfig() (*Config, error) {
 }
 
 func (s *Service) SaveConfig(config *Config) error {
-	rootFolderID, err := s.getOrCreateFolder("daily-notes", "")
+	rootFolderID, err := s.getOrCreateFolder("dailynotes.dev", "")
 	if err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func (s *Service) CreateContext(name, color string) (*models.Context, error) {
 		}
 	}
 
-	rootFolderID, err := s.getOrCreateFolder("daily-notes", "")
+	rootFolderID, err := s.getOrCreateFolder("dailynotes.dev", "")
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +225,7 @@ func (s *Service) DeleteContext(contextID string) error {
 
 func (s *Service) GetNote(contextName, date string) (*models.Note, error) {
 	// Get or create folder structure: daily-notes/contextName/
-	rootFolderID, err := s.getOrCreateFolder("daily-notes", "")
+	rootFolderID, err := s.getOrCreateFolder("dailynotes.dev", "")
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +282,7 @@ func (s *Service) GetNote(contextName, date string) (*models.Note, error) {
 
 func (s *Service) UpsertNote(contextName, date, content string) (*models.Note, error) {
 	// Get or create folder structure: daily-notes/contextName/
-	rootFolderID, err := s.getOrCreateFolder("daily-notes", "")
+	rootFolderID, err := s.getOrCreateFolder("dailynotes.dev", "")
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +350,7 @@ func (s *Service) UpsertNote(contextName, date, content string) (*models.Note, e
 
 func (s *Service) GetNotesByContext(contextName string, limit, offset int) ([]models.Note, error) {
 	// Get or create folder structure: daily-notes/contextName/
-	rootFolderID, err := s.getOrCreateFolder("daily-notes", "")
+	rootFolderID, err := s.getOrCreateFolder("dailynotes.dev", "")
 	if err != nil {
 		return nil, err
 	}
@@ -453,7 +453,7 @@ func (s *Service) GetSettings() (models.UserSettings, error) {
 
 // GetAllNotesInContext retrieves all notes with content for a context (used for initial sync)
 func (s *Service) GetAllNotesInContext(contextName string) ([]models.Note, error) {
-	rootFolderID, err := s.getOrCreateFolder("daily-notes", "")
+	rootFolderID, err := s.getOrCreateFolder("dailynotes.dev", "")
 	if err != nil {
 		return nil, err
 	}

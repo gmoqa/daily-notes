@@ -43,8 +43,12 @@ class UIManager {
             // Date
             datePicker: document.getElementById('date-picker'),
 
+            // Breadcrumb
+            breadcrumbContextName: document.getElementById('breadcrumb-context-name'),
+            breadcrumbDateName: document.getElementById('breadcrumb-date-name'),
+
             // Editor
-            noteEditor: document.getElementById('note-editor'),
+            markdownEditorContainer: document.getElementById('markdown-editor-container'),
             saveIndicator: document.getElementById('save-indicator'),
 
             // Notes list
@@ -120,11 +124,6 @@ class UIManager {
             notes.selectDate(e.target.value);
         });
 
-        // Note editor
-        this.elements.noteEditor?.addEventListener('input', (e) => {
-            notes.handleNoteInput(e.target.value);
-        });
-
         // Calendar navigation
         document.getElementById('prev-month')?.addEventListener('click', () => {
             calendar.prevMonth();
@@ -178,12 +177,9 @@ class UIManager {
                 return;
             }
 
-            // Cmd/Ctrl+/: Focus editor
+            // Cmd/Ctrl+/: Focus editor (handled by markdown editor)
             if (modKey && e.key === '/') {
                 e.preventDefault();
-                if (!this.elements.noteEditor?.disabled) {
-                    this.elements.noteEditor?.focus();
-                }
                 return;
             }
 
@@ -256,6 +252,11 @@ class UIManager {
             calendar.render();
         });
 
+        // Update breadcrumb when context changes
+        state.subscribe('selectedContext', (context) => {
+            this.updateBreadcrumb();
+        });
+
         // Update date picker when selected date changes
         state.subscribe('selectedDate', (newDate) => {
             if (this.elements.datePicker) {
@@ -264,6 +265,7 @@ class UIManager {
             }
             this.renderNotesList(); // Update active state
             calendar.render();
+            this.updateBreadcrumb();
         });
 
         // Update date picker display when date format changes
@@ -272,6 +274,7 @@ class UIManager {
             if (selectedDate) {
                 this.updateDatePickerDisplay(selectedDate);
             }
+            this.updateBreadcrumb();
         });
 
         // Update context indicator when selected context changes
@@ -425,18 +428,18 @@ class UIManager {
     }
 
     updateEditorState() {
-        if (!this.elements.noteEditor) return;
-
+        // Editor state is now managed by the markdown editor module
         const context = state.get('selectedContext');
 
-        if (context) {
-            this.elements.noteEditor.disabled = false;
-            this.elements.noteEditor.placeholder = 'Daily Notes\n\nWhat did you work on today?';
-        } else {
-            this.elements.noteEditor.disabled = true;
-            this.elements.noteEditor.placeholder = 'Select a context to start writing notes...';
-            this.elements.noteEditor.value = '';
-        }
+        // Import the markdown editor dynamically to avoid circular dependencies
+        import('./markdown-editor.js').then(({ markdownEditor }) => {
+            if (context) {
+                markdownEditor.setDisabled(false);
+            } else {
+                markdownEditor.setDisabled(true);
+                markdownEditor.setContent('');
+            }
+        });
     }
 
     updateSaveIndicator(status) {
@@ -505,6 +508,10 @@ class UIManager {
 
         // Update context selector visibility based on settings
         this.updateContextSelectorVisibility();
+
+        // Update breadcrumb and markdown editor visibility
+        this.updateBreadcrumbVisibility();
+        this.updateMarkdownEditorVisibility();
 
         // Check if this is first login
         const hasSeenOnboarding = localStorage.getItem('onboarding_completed');
@@ -587,6 +594,29 @@ class UIManager {
         if (uniqueContextModeSwitch) {
             uniqueContextModeSwitch.checked = settings.uniqueContextMode || false;
         }
+        const showBreadcrumbSwitch = document.getElementById('show-breadcrumb-switch');
+        if (showBreadcrumbSwitch) {
+            showBreadcrumbSwitch.checked = settings.showBreadcrumb !== false;
+        }
+        const showMarkdownEditorSwitch = document.getElementById('show-markdown-editor-switch');
+        if (showMarkdownEditorSwitch) {
+            showMarkdownEditorSwitch.checked = settings.showMarkdownEditor !== false;
+        }
+
+        // Reset save button state
+        const saveBtn = document.getElementById('settings-save-btn');
+        const saveIcon = document.getElementById('settings-save-icon');
+        const saveSpinner = document.getElementById('settings-save-spinner');
+        const saveText = document.getElementById('settings-save-text');
+
+        if (saveBtn) saveBtn.disabled = false;
+        if (saveIcon) {
+            saveIcon.style.display = 'inline-flex';
+            const iconElement = saveIcon.querySelector('.material-symbols-outlined');
+            if (iconElement) iconElement.textContent = 'check';
+        }
+        if (saveSpinner) saveSpinner.style.display = 'none';
+        if (saveText) saveText.textContent = 'Save';
 
         this.elements.settingsModal?.classList.add('is-active');
     }
@@ -676,47 +706,63 @@ class UIManager {
         displayElement.textContent = formattedDate;
     }
 
-    autoExpandTextarea(textarea) {
-        textarea.style.height = 'auto';
-        textarea.style.height = Math.max(
-            textarea.scrollHeight,
-            parseInt(getComputedStyle(textarea).minHeight)
-        ) + 'px';
-    }
-
     updateContextSelectorVisibility() {
         const settings = state.get('userSettings');
         const uniqueContextMode = settings.uniqueContextMode || false;
-
-        console.log('[UI] updateContextSelectorVisibility - uniqueContextMode:', uniqueContextMode);
 
         // Get context selector containers (both desktop and mobile)
         const desktopContextContainer = document.getElementById('desktop-context-selector');
         const mobileContextContainer = document.getElementById('mobile-context-selector');
 
-        console.log('[UI] desktopContextContainer:', desktopContextContainer);
-        console.log('[UI] mobileContextContainer:', mobileContextContainer);
-
         if (uniqueContextMode) {
             // Hide context selectors
             if (desktopContextContainer) {
-                console.log('[UI] Hiding desktop context selector');
                 desktopContextContainer.style.display = 'none';
             }
             if (mobileContextContainer) {
-                console.log('[UI] Hiding mobile context selector');
                 mobileContextContainer.style.display = 'none';
             }
         } else {
             // Show context selectors
             if (desktopContextContainer) {
-                console.log('[UI] Showing desktop context selector');
                 desktopContextContainer.style.display = '';
             }
             if (mobileContextContainer) {
-                console.log('[UI] Showing mobile context selector');
                 mobileContextContainer.style.display = '';
             }
+        }
+    }
+
+    updateBreadcrumbVisibility() {
+        const settings = state.get('userSettings');
+        const showBreadcrumb = settings.showBreadcrumb !== false;
+        
+        const breadcrumb = document.getElementById('drive-breadcrumb');
+        const mainSection = document.querySelector('.main-section');
+        
+        // Show/hide breadcrumb
+        if (breadcrumb) {
+            breadcrumb.style.display = showBreadcrumb ? '' : 'none';
+        }
+        
+        // Set data attribute that CSS will use to adjust spacing
+        if (mainSection) {
+            if (showBreadcrumb) {
+                mainSection.removeAttribute('data-hide-breadcrumb');
+            } else {
+                mainSection.setAttribute('data-hide-breadcrumb', 'true');
+            }
+        }
+    }
+
+    updateMarkdownEditorVisibility() {
+        const settings = state.get('userSettings');
+        const showMarkdownEditor = settings.showMarkdownEditor !== false;
+
+        // Get the Quill toolbar
+        const toolbar = document.querySelector('.ql-toolbar');
+        if (toolbar) {
+            toolbar.style.display = showMarkdownEditor ? '' : 'none';
         }
     }
 
@@ -848,6 +894,46 @@ class UIManager {
         this.elements.calendarPanel.classList.remove('active');
         this.elements.calendarOverlay.classList.remove('active');
         document.body.style.overflow = '';
+    }
+
+    updateBreadcrumb() {
+        const context = state.get('selectedContext');
+        const selectedDate = state.get('selectedDate');
+        const settings = state.get('userSettings');
+        const timezone = settings.timezone || 'UTC';
+        const dateFormat = settings.dateFormat || 'DD-MM-YY';
+
+        if (this.elements.breadcrumbContextName && context) {
+            this.elements.breadcrumbContextName.textContent = context;
+        }
+
+        if (this.elements.breadcrumbDateName && selectedDate) {
+            // Format date the same way as notes list
+            const [year, month, day] = selectedDate.split('-').map(Number);
+            const dateObj = new Date(year, month - 1, day);
+
+            // Get the day name in English
+            const dayName = dateObj.toLocaleDateString('en-US', {
+                weekday: 'long',
+                timeZone: timezone
+            });
+
+            // Format date based on user preference
+            const yy = String(year).substring(2); // Get last 2 digits of year
+            const mm = String(month).padStart(2, '0');
+            const dd = String(day).padStart(2, '0');
+
+            let dateStr;
+            if (dateFormat === 'MM-DD-YY') {
+                dateStr = `${mm}-${dd}-${yy}`;
+            } else {
+                dateStr = `${dd}-${mm}-${yy}`;
+            }
+
+            // Format: "Monday, 24-10-25.md" or "Monday, 10-24-25.md" depending on dateFormat
+            const formattedDate = `${dayName}, ${dateStr}.md`;
+            this.elements.breadcrumbDateName.textContent = formattedDate;
+        }
     }
 }
 

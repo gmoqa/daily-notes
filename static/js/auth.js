@@ -22,7 +22,9 @@ class AuthManager {
                     theme: 'dark',
                     weekStart: 0,
                     timezone: 'UTC',
-                    dateFormat: 'DD-MM-YY'
+                    dateFormat: 'DD-MM-YY',
+                    showBreadcrumb: true,
+                    showMarkdownEditor: true
                 }
             });
             return true;
@@ -65,7 +67,9 @@ class AuthManager {
                         theme: 'dark',
                         weekStart: 0,
                         timezone: 'UTC',
-                        dateFormat: 'DD-MM-YY'
+                        dateFormat: 'DD-MM-YY',
+                        showBreadcrumb: true,
+                        showMarkdownEditor: true
                     }
                 });
 
