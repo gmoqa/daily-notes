@@ -12,7 +12,7 @@ Your daily work notes, organized & synced. Minimalist workspace for tracking dai
 ## Features
 
 - **Offline-first with automatic sync** - Work without internet, sync when ready
-- **Notes stored in your Google Drive** - CSV format, full control over your data
+- **Notes stored in your Google Drive** - Markdown format, full control over your data
 - **Context-based organization** - Organize by projects, clients, or any context
 - **Auto-save** - Your notes save automatically after 500ms of inactivity
 - **Dark/light mode** - Comfortable viewing in any lighting condition
@@ -45,24 +45,31 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for complete setup instructions.
 - **Backend**: Go + Fiber
 - **Templates**: Templ (type-safe Go templates)
 - **Frontend**: Vanilla JavaScript (ES6 modules)
-- **Storage**: Google Drive API (CSV format)
+- **Editor**: Quill (WYSIWYG markdown editor)
+- **Storage**: Google Drive API (Markdown files)
+- **Local Storage**: SQLite + IndexedDB
 - **Auth**: Google OAuth 2.0
 - **Styling**: Bulma CSS
-- **PWA**: Service Worker + IndexedDB
+- **PWA**: Service Worker for offline support
 
 ## Data Storage
 
-Notes are stored in your Google Drive as CSV files. You have full control - view, edit, export, or delete them anytime.
+Notes are stored in your Google Drive as Markdown files. You have full control - view, edit, export, or delete them anytime.
 
 ```
 Google Drive/
-└── daily-notes/
+└── dailynotes.dev/
     ├── config.json
     ├── Project-A/
-    │   └── 2025.csv
+    │   ├── 2025-01-15.md
+    │   ├── 2025-01-16.md
+    │   └── 2025-01-17.md
     └── Project-B/
-        └── 2025.csv
+        ├── 2025-01-15.md
+        └── 2025-01-16.md
 ```
+
+Each note is a separate Markdown file named by date (`YYYY-MM-DD.md`), organized by context/project folders.
 
 ## Contributing
 
