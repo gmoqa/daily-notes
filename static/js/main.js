@@ -48,11 +48,6 @@ class Application {
             notes.handleNoteInput(content);
         });
 
-        // Apply markdown editor visibility settings after initialization
-        setTimeout(() => {
-            ui.updateMarkdownEditorVisibility();
-        }, 100);
-
         // Check authentication
         const isAuthenticated = await auth.checkAuth();
 
