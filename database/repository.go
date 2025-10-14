@@ -99,7 +99,8 @@ func (r *Repository) GetContexts(userID string) ([]models.Context, error) {
 	}
 	defer rows.Close()
 
-	var contexts []models.Context
+	// Initialize with empty slice to avoid returning nil
+	contexts := make([]models.Context, 0)
 	for rows.Next() {
 		var ctx models.Context
 		if err := rows.Scan(&ctx.ID, &ctx.UserID, &ctx.Name, &ctx.Color, &ctx.CreatedAt); err != nil {

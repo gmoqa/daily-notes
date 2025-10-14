@@ -18,7 +18,9 @@ class ContextsManager {
 
         // Load from server in background
         try {
-            const { contexts } = await api.getContexts();
+            const response = await api.getContexts();
+            // Handle null/undefined contexts gracefully
+            const contexts = response?.contexts || [];
             await cache.saveContexts(contexts);
             state.set('contexts', contexts);
             events.emit(EVENT.CONTEXTS_LOADED, contexts);

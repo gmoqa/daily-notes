@@ -30,7 +30,7 @@ class APIClient {
                         events.emit(EVENT.SHOW_ERROR, 'Session expired. Please login again.');
                     }
                     state.set('currentUser', null);
-                    return;
+                    throw new Error('Session expired');
                 }
 
                 throw new Error(data.error || `Request failed with status ${response.status}`);

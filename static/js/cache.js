@@ -163,6 +163,12 @@ export class LocalCache {
     async saveContexts(contexts) {
         if (!this.db) return;
 
+        // Handle null/undefined contexts
+        if (!contexts || !Array.isArray(contexts)) {
+            console.warn('[Cache] saveContexts called with invalid contexts:', contexts);
+            return;
+        }
+
         const tx = this.db.transaction(['contexts'], 'readwrite');
         const store = tx.objectStore('contexts');
 
