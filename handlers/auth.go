@@ -275,3 +275,40 @@ func UpdateSettings(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"success": true})
 }
+
+func SyncFromDrive(c *fiber.Ctx) error {
+	sessionID := c.Cookies("session_id")
+	sess, err := session.Get(sessionID)
+	if err != nil || sess == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	if syncWorker == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Sync worker not available",
+		})
+	}
+
+	token := &oauth2.Token{
+		AccessToken:  sess.AccessToken,
+		RefreshToken: sess.RefreshToken,
+		Expiry:       sess.TokenExpiry,
+	}
+
+	// Import data from Drive
+	go func() {
+		log.Printf("Manual sync triggered for user %s", sess.UserID)
+		if err := syncWorker.ImportFromDrive(sess.UserID, token); err != nil {
+			log.Printf("Failed to import from Drive: %v", err)
+		} else {
+			log.Printf("Successfully imported data from Drive for user %s", sess.UserID)
+		}
+	}()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Sync started in background",
+	})
+}
