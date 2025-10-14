@@ -91,11 +91,37 @@ func (db *DB) Migrate() error {
 			UNIQUE(user_id, context, date)
 		)`,
 
+		// Sessions table
+		`CREATE TABLE IF NOT EXISTS sessions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			name TEXT NOT NULL,
+			picture TEXT,
+			access_token TEXT NOT NULL,
+			refresh_token TEXT,
+			token_expiry DATETIME,
+			settings_theme TEXT DEFAULT 'dark',
+			settings_week_start INTEGER DEFAULT 0,
+			settings_timezone TEXT DEFAULT 'UTC',
+			settings_date_format TEXT DEFAULT 'DD-MM-YY',
+			settings_unique_context_mode INTEGER DEFAULT 0,
+			settings_show_breadcrumb INTEGER DEFAULT 1,
+			settings_show_markdown_editor INTEGER DEFAULT 0,
+			settings_hide_new_context_button INTEGER DEFAULT 0,
+			expires_at DATETIME NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+
 		// Indexes for performance
 		`CREATE INDEX IF NOT EXISTS idx_notes_user_context ON notes(user_id, context)`,
 		`CREATE INDEX IF NOT EXISTS idx_notes_user_date ON notes(user_id, date)`,
 		`CREATE INDEX IF NOT EXISTS idx_notes_sync_pending ON notes(sync_pending) WHERE sync_pending = 1`,
 		`CREATE INDEX IF NOT EXISTS idx_contexts_user ON contexts(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)`,
 	}
 
 	for _, query := range queries {
