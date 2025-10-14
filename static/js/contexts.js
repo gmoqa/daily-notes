@@ -12,15 +12,19 @@ class ContextsManager {
     async loadContexts() {
         // Try local cache first (instant)
         const cachedContexts = await cache.getContexts();
+        console.log('[CONTEXTS] Cached contexts:', cachedContexts);
         if (cachedContexts.length > 0) {
             state.set('contexts', cachedContexts);
         }
 
         // Load from server in background
         try {
+            console.log('[CONTEXTS] Fetching contexts from server...');
             const response = await api.getContexts();
+            console.log('[CONTEXTS] Server response:', response);
             // Handle null/undefined contexts gracefully
             const contexts = response?.contexts || [];
+            console.log('[CONTEXTS] Parsed contexts:', contexts);
             await cache.saveContexts(contexts);
             state.set('contexts', contexts);
             events.emit(EVENT.CONTEXTS_LOADED, contexts);
