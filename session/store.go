@@ -55,8 +55,12 @@ func Create(userID, email, name, picture, accessToken, refreshToken string, toke
 		expiresAt, now, now,
 	)
 	if err != nil {
+		fmt.Printf("[Session Store] ERROR creating session: %v\n", err)
+		fmt.Printf("[Session Store] SessionID: %s, UserID: %s, Email: %s\n", sessionID, userID, email)
 		return nil, err
 	}
+
+	fmt.Printf("[Session Store] Session created successfully for user: %s\n", email)
 
 	return &models.Session{
 		ID:           sessionID,
