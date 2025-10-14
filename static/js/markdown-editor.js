@@ -22,9 +22,19 @@ class MarkdownEditor {
         }
 
         this.onChangeCallback = onChange;
-        await this.loadQuill();
-        this.render();
-        this.initQuill();
+        
+        // Don't load Quill yet - wait until actually needed (lazy loading)
+        // This saves ~300KB on initial page load
+        this.container.innerHTML = '<div style="padding: 1rem; color: var(--bulma-text-light); opacity: 0.6;">Editor loading...</div>';
+    }
+    
+    async ensureQuillLoaded() {
+        // Only load Quill when first needed
+        if (!this.editor) {
+            await this.loadQuill();
+            this.render();
+            this.initQuill();
+        }
     }
 
     async loadQuill() {
@@ -195,7 +205,10 @@ class MarkdownEditor {
         return markdown.trim();
     }
 
-    setContent(content) {
+    async setContent(content) {
+        // Lazy load Quill when content is set
+        await this.ensureQuillLoaded();
+        
         if (!this.editor) return;
 
         this.isUpdating = true;
@@ -336,11 +349,16 @@ class MarkdownEditor {
         return this.getMarkdown();
     }
 
-    setDisabled(disabled) {
+    async setDisabled(disabled) {
+        // Only load editor if we're enabling it
+        if (!disabled) {
+            await this.ensureQuillLoaded();
+        }
+        
         if (!this.editor) return;
         this.editor.enable(!disabled);
 
-        const toolbar = this.container?.querySelector('#quill-toolbar');
+        const toolbar = this.container?.querySelector('.ql-toolbar');
         if (toolbar) {
             toolbar.style.pointerEvents = disabled ? 'none' : 'auto';
             toolbar.style.opacity = disabled ? '0.5' : '1';

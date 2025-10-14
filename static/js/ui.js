@@ -15,6 +15,9 @@ class UIManager {
     constructor() {
         this.elements = {};
         this.lastKnownDate = null;
+        // Virtual scrolling optimization
+        this.INITIAL_RENDER_COUNT = 50; // Only render first 50 notes initially
+        this.renderedNotesCount = this.INITIAL_RENDER_COUNT;
     }
 
     init() {
@@ -255,6 +258,8 @@ class UIManager {
         // Update breadcrumb when context changes
         state.subscribe('selectedContext', (context) => {
             this.updateBreadcrumb();
+            // Reset virtual scrolling when switching contexts
+            this.renderedNotesCount = this.INITIAL_RENDER_COUNT;
         });
 
         // Update date picker when selected date changes
@@ -385,7 +390,11 @@ class UIManager {
             return;
         }
 
-        this.elements.notesList.innerHTML = notesList.map(note => {
+        // Virtual scrolling: only render visible notes
+        const notesToRender = notesList.slice(0, this.renderedNotesCount);
+        const hasMore = notesList.length > this.renderedNotesCount;
+
+        this.elements.notesList.innerHTML = notesToRender.map(note => {
             const [year, month, day] = note.date.split('-').map(Number);
             const dateObj = new Date(year, month - 1, day);
 
@@ -424,8 +433,22 @@ class UIManager {
             `;
         }).join('');
 
-        // Add click handlers
-        this.elements.notesList.querySelectorAll('a').forEach(link => {
+        // Add "Load More" button if there are more notes
+        if (hasMore) {
+            this.elements.notesList.innerHTML += `
+                <li class="has-text-centered py-3">
+                    <button class="button is-small is-ghost" id="load-more-notes" style="opacity: 0.7;">
+                        <span class="icon">
+                            <span class="material-symbols-outlined">expand_more</span>
+                        </span>
+                        <span>Load ${Math.min(50, notesList.length - this.renderedNotesCount)} more</span>
+                    </button>
+                </li>
+            `;
+        }
+
+        // Add click handlers for notes
+        this.elements.notesList.querySelectorAll('a[data-date]').forEach(link => {
             link.addEventListener('click', () => {
                 const dateStr = link.dataset.date;
                 if (dateStr) {
@@ -433,6 +456,15 @@ class UIManager {
                 }
             });
         });
+
+        // Add click handler for "Load More" button
+        const loadMoreBtn = document.getElementById('load-more-notes');
+        if (loadMoreBtn) {
+            loadMoreBtn.addEventListener('click', () => {
+                this.renderedNotesCount += 50;
+                this.renderNotesList();
+            });
+        }
     }
 
     updateEditorState() {

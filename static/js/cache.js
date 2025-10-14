@@ -8,6 +8,10 @@ export class LocalCache {
         this.db = null;
         this.dbName = 'DailyNotesDB';
         this.version = 1;
+        // Batch write optimization
+        this.pendingWrites = new Map();
+        this.writeTimer = null;
+        this.BATCH_DELAY = 500; // ms
     }
 
     async init() {
@@ -36,6 +40,57 @@ export class LocalCache {
     }
 
     async saveNote(note) {
+        if (!this.db) return;
+
+        const id = `${note.context}-${note.date}`;
+        
+        // Add to pending writes (batching)
+        this.pendingWrites.set(id, {
+            ...note,
+            id,
+            _localTimestamp: Date.now()
+        });
+
+        // Schedule batch write
+        this.scheduleBatchWrite();
+
+        return Promise.resolve();
+    }
+
+    scheduleBatchWrite() {
+        if (this.writeTimer) {
+            clearTimeout(this.writeTimer);
+        }
+
+        this.writeTimer = setTimeout(() => {
+            this.flushPendingWrites();
+        }, this.BATCH_DELAY);
+    }
+
+    async flushPendingWrites() {
+        if (!this.db || this.pendingWrites.size === 0) return;
+
+        const notesToWrite = Array.from(this.pendingWrites.values());
+        this.pendingWrites.clear();
+
+        const tx = this.db.transaction(['notes'], 'readwrite');
+        const store = tx.objectStore('notes');
+
+        notesToWrite.forEach(note => {
+            store.put(note);
+        });
+
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = () => {
+                console.log(`[Cache] Batch wrote ${notesToWrite.length} note(s)`);
+                resolve();
+            };
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    // Force immediate write (for critical operations)
+    async saveNoteImmediate(note) {
         if (!this.db) return;
 
         const tx = this.db.transaction(['notes'], 'readwrite');

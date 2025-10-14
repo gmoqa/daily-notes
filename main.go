@@ -91,7 +91,12 @@ func main() {
 		}),
 	)
 
-	app.Static("/static", "./static", fiber.Static{Compress: true, MaxAge: 86400})
+	// Static assets with aggressive caching
+	app.Static("/static", "./static", fiber.Static{
+		Compress:      true,
+		CacheDuration: 365 * 24 * time.Hour, // 1 year for versioned assets
+		MaxAge:        31536000,             // 1 year in seconds
+	})
 	app.Get("/robots.txt", func(c *fiber.Ctx) error {
 		return c.SendFile("./static/robots.txt")
 	})
