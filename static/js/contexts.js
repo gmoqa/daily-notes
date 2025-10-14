@@ -23,9 +23,12 @@ class ContextsManager {
             state.set('contexts', contexts);
             events.emit(EVENT.CONTEXTS_LOADED, contexts);
         } catch (error) {
-            if (cachedContexts.length === 0) {
+            console.error('[CONTEXTS] Failed to load contexts from server:', error);
+            // Only show error if we have no contexts at all AND it's a real network error
+            if (cachedContexts.length === 0 && !navigator.onLine) {
                 events.emit(EVENT.SHOW_ERROR, 'Failed to load contexts. Working offline.');
             }
+            // If online but failed, don't show error - user might just have 0 contexts
         }
     }
 
