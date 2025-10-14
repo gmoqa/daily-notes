@@ -40,15 +40,15 @@ class MarkdownEditor {
     async loadQuill() {
         if (typeof window.Quill !== 'undefined') return;
 
-        // Load Quill CSS from jsDelivr (CSP approved)
+        // Load Quill CSS locally
         const css = document.createElement('link');
         css.rel = 'stylesheet';
-        css.href = 'https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css';
+        css.href = '/static/vendor/quill/quill.snow.css';
         document.head.appendChild(css);
 
-        // Load Quill JS from jsDelivr (CSP approved)
+        // Load Quill JS locally
         const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js';
+        script.src = '/static/vendor/quill/quill.min.js';
         document.head.appendChild(script);
 
         // Wait for Quill to load
