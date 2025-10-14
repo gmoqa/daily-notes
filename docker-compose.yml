@@ -3,10 +3,13 @@ services:
     build: .
     ports:
       - "3000:3000"
+    volumes:
+      - ./data:/root/data
     environment:
       - ENV=production
       - PORT=3000
       - LOG_LEVEL=info
+      - DB_PATH=/root/data/daily-notes.db
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_REDIRECT_URL=postmessage

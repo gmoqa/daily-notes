@@ -3,6 +3,7 @@ package session
 import (
 	"daily-notes/models"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,10 +19,18 @@ type SessionStore struct {
 
 // Initialize sets the database connection for the session store
 func Initialize(database *sql.DB) {
+	if database == nil {
+		panic("session.Initialize called with nil database")
+	}
 	db = database
+	fmt.Println("[Session Store] Initialized with database connection")
 }
 
 func Create(userID, email, name, picture, accessToken, refreshToken string, tokenExpiry time.Time, settings models.UserSettings) (*models.Session, error) {
+	if db == nil {
+		return nil, sql.ErrConnDone
+	}
+
 	sessionID := uuid.New().String()
 	now := time.Now()
 	expiresAt := now.Add(30 * 24 * time.Hour)
