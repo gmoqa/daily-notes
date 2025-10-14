@@ -46,6 +46,10 @@ func main() {
 	repo := database.NewRepository(db)
 	handlers.SetRepository(repo)
 
+	// Initialize session store with database
+	session.Initialize(db.DB)
+	logger.Info("session store initialized with database")
+
 	// Start session cleanup
 	session.StartCleanupRoutine()
 	logger.Info("session cleanup routine started")
