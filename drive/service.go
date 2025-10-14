@@ -94,6 +94,27 @@ func (s *Service) GetConfig() (*Config, error) {
 	}
 
 	if len(fileList.Files) == 0 {
+		// No config.json found - check for existing folders to migrate
+		existingContexts, err := s.detectExistingContexts(rootFolderID)
+		if err == nil && len(existingContexts) > 0 {
+			// Found existing context folders - create config with them
+			fmt.Printf("[Drive] Found %d existing context folders, migrating to config.json\n", len(existingContexts))
+			defaultConfig := &Config{
+				Contexts: existingContexts,
+				Settings: models.UserSettings{
+					Theme:      "dark",
+					WeekStart:  0,
+					Timezone:   "UTC",
+					DateFormat: "DD-MM-YY",
+				},
+			}
+			if err := s.SaveConfig(defaultConfig); err != nil {
+				return nil, err
+			}
+			return defaultConfig, nil
+		}
+
+		// No existing contexts - create empty config
 		defaultConfig := &Config{
 			Contexts: []models.Context{},
 			Settings: models.UserSettings{
@@ -121,6 +142,33 @@ func (s *Service) GetConfig() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// detectExistingContexts scans for existing context folders and creates Context objects from them
+func (s *Service) detectExistingContexts(rootFolderID string) ([]models.Context, error) {
+	// List all folders in the root dailynotes.dev folder
+	query := fmt.Sprintf("'%s' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false", rootFolderID)
+	fileList, err := s.client.Files.List().
+		Q(query).
+		Fields("files(id, name, createdTime)").
+		Do()
+	if err != nil {
+		return nil, err
+	}
+
+	var contexts []models.Context
+	for _, folder := range fileList.Files {
+		createdAt, _ := time.Parse(time.RFC3339, folder.CreatedTime)
+		contexts = append(contexts, models.Context{
+			ID:        folder.Id,
+			UserID:    s.userID,
+			Name:      folder.Name,
+			Color:     "primary", // Default color
+			CreatedAt: createdAt,
+		})
+	}
+
+	return contexts, nil
 }
 
 func (s *Service) SaveConfig(config *Config) error {
