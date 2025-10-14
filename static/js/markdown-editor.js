@@ -345,6 +345,16 @@ class MarkdownEditor {
             toolbar.style.pointerEvents = disabled ? 'none' : 'auto';
             toolbar.style.opacity = disabled ? '0.5' : '1';
         }
+
+        // Update placeholder based on disabled state
+        const editorRoot = this.editor.root;
+        if (editorRoot) {
+            if (disabled) {
+                editorRoot.dataset.placeholder = 'Click "+ New Context" to create your first context and start writing notes...';
+            } else {
+                editorRoot.dataset.placeholder = 'Start writing your notes...';
+            }
+        }
     }
 
     focus() {

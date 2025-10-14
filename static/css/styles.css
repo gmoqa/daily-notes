@@ -29,6 +29,16 @@
     --z-modal: 500;
     --z-notification: 1000;
     --z-overlay: 9999;
+
+    /* Landing Page Highlight Colors - Light Theme (default) */
+    --color-go: #0098b8;
+    --color-free: #33c27f;
+}
+
+[data-theme="dark"] {
+    /* Landing Page Highlight Colors - Dark Theme */
+    --color-go: #00ADD8;
+    --color-free: #48c78e;
 }
 
 /* ==========================================

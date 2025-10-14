@@ -36,7 +36,7 @@ class ContextsManager {
         const newContext = {
             id: `temp-${Date.now()}`,
             name,
-            color: color || '#485fc7',
+            color: color || 'primary',
             created_at: new Date().toISOString()
         };
 
@@ -55,6 +55,35 @@ class ContextsManager {
         });
 
         return newContext;
+    }
+
+    async updateContext(contextId, name, color) {
+        try {
+            await api.updateContext(contextId, { name, color });
+
+            // Update local state
+            const currentContexts = state.get('contexts');
+            const updatedContexts = currentContexts.map(c => 
+                c.id === contextId ? { ...c, name, color } : c
+            );
+
+            await cache.saveContexts(updatedContexts);
+            state.set('contexts', updatedContexts);
+
+            // Update selected context if it was the one being edited
+            const selectedContext = state.get('selectedContext');
+            const oldContext = currentContexts.find(c => c.id === contextId);
+            if (selectedContext === oldContext?.name) {
+                state.set('selectedContext', name);
+                localStorage.setItem('lastContext', name);
+            }
+
+            events.emit(EVENT.SHOW_SUCCESS, 'Context updated successfully');
+            return true;
+        } catch (error) {
+            events.emit(EVENT.SHOW_ERROR, 'Failed to update context');
+            return false;
+        }
     }
 
     async deleteContext(contextId) {
@@ -90,7 +119,10 @@ class ContextsManager {
     getContextColor(contextName) {
         const contexts = state.get('contexts');
         const context = contexts.find(c => c.name === contextName);
-        return context?.color || '#485fc7';
+        // Normalize old hex colors
+        const color = context?.color || 'primary';
+        const bulmaColors = ['text', 'link', 'primary', 'info', 'success', 'warning', 'danger'];
+        return bulmaColors.includes(color) ? color : 'primary';
     }
 
     restoreLastContext() {

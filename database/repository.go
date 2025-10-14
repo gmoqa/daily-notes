@@ -121,6 +121,17 @@ func (r *Repository) CreateContext(ctx *models.Context) error {
 	return err
 }
 
+func (r *Repository) UpdateContext(contextID string, name string, color string) error {
+	_, err := r.db.Exec(`
+		UPDATE contexts SET
+			name = ?,
+			color = ?,
+			updated_at = ?
+		WHERE id = ?
+	`, name, color, time.Now(), contextID)
+	return err
+}
+
 func (r *Repository) DeleteContext(contextID string) error {
 	_, err := r.db.Exec("DELETE FROM contexts WHERE id = ?", contextID)
 	return err

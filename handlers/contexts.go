@@ -45,13 +45,21 @@ func CreateContext(c *fiber.Ctx) error {
 		return badRequest(c, "name contains invalid characters")
 	}
 
-	if req.Color != "" {
-		validColor := regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
-		if !validColor.MatchString(req.Color) {
-			return badRequest(c, "color must be a valid hex color")
-		}
-	} else {
-		req.Color = "#485fc7"
+	// Validate color is from Bulma palette
+	validColors := map[string]bool{
+		"text":    true,
+		"link":    true,
+		"primary": true,
+		"info":    true,
+		"success": true,
+		"warning": true,
+		"danger":  true,
+	}
+
+	if req.Color == "" {
+		req.Color = "primary"
+	} else if !validColors[req.Color] {
+		return badRequest(c, "color must be one of: text, link, primary, info, success, warning, danger")
 	}
 
 	userID := middleware.GetUserID(c)
@@ -80,6 +88,58 @@ func CreateContext(c *fiber.Ctx) error {
 
 	// Context will be synced to Drive by the background worker when notes are created
 	return created(c, fiber.Map{"context": context})
+}
+
+func UpdateContext(c *fiber.Ctx) error {
+	contextID := c.Params("id")
+	if contextID == "" {
+		return badRequest(c, "context ID is required")
+	}
+
+	var req models.UpdateContextRequest
+	if err := c.BodyParser(&req); err != nil {
+		return badRequest(c, "Invalid request body")
+	}
+
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		return badRequest(c, "name is required")
+	}
+	if len(req.Name) > 100 {
+		return badRequest(c, "name must be 100 characters or less")
+	}
+	if len(req.Name) < 2 {
+		return badRequest(c, "name must be at least 2 characters")
+	}
+
+	validName := regexp.MustCompile(`^[\p{L}\p{N}\s\-_.,&()]+$`)
+	if !validName.MatchString(req.Name) {
+		return badRequest(c, "name contains invalid characters")
+	}
+
+	// Validate color is from Bulma palette
+	validColors := map[string]bool{
+		"text":    true,
+		"link":    true,
+		"primary": true,
+		"info":    true,
+		"success": true,
+		"warning": true,
+		"danger":  true,
+	}
+
+	if req.Color == "" {
+		req.Color = "primary"
+	} else if !validColors[req.Color] {
+		return badRequest(c, "color must be one of: text, link, primary, info, success, warning, danger")
+	}
+
+	// Update in local database
+	if err := repo.UpdateContext(contextID, req.Name, req.Color); err != nil {
+		return serverErrorWithDetails(c, "Failed to update context", err)
+	}
+
+	return success(c, fiber.Map{"message": "Context updated successfully"})
 }
 
 func DeleteContext(c *fiber.Ctx) error {

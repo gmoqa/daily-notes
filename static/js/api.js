@@ -85,6 +85,13 @@ class APIClient {
         });
     }
 
+    async updateContext(id, data) {
+        return await this.request(`/api/contexts/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    }
+
     async deleteContext(id) {
         return await this.request(`/api/contexts/${id}`, {
             method: 'DELETE'

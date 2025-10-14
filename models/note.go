@@ -10,6 +10,7 @@ type UserSettings struct {
 	UniqueContextMode    bool   `json:"uniqueContextMode"`
 	ShowBreadcrumb       bool   `json:"showBreadcrumb"`
 	ShowMarkdownEditor   bool   `json:"showMarkdownEditor"`
+	HideNewContextButton bool   `json:"hideNewContextButton"`
 }
 
 type User struct {
@@ -31,6 +32,7 @@ type UpdateSettingsRequest struct {
 	UniqueContextMode    bool   `json:"uniqueContextMode"`
 	ShowBreadcrumb       bool   `json:"showBreadcrumb"`
 	ShowMarkdownEditor   bool   `json:"showMarkdownEditor"`
+	HideNewContextButton bool   `json:"hideNewContextButton"`
 }
 
 type Note struct {
@@ -58,6 +60,11 @@ type CreateNoteRequest struct {
 }
 
 type CreateContextRequest struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
+
+type UpdateContextRequest struct {
 	Name  string `json:"name"`
 	Color string `json:"color"`
 }

@@ -121,6 +121,7 @@ func main() {
 	}))
 	api.Get("/contexts", handlers.GetContexts)
 	api.Post("/contexts", handlers.CreateContext)
+	api.Put("/contexts/:id", handlers.UpdateContext)
 	api.Delete("/contexts/:id", handlers.DeleteContext)
 	api.Get("/notes", handlers.GetNote)
 	api.Post("/notes", handlers.UpsertNote)
@@ -176,7 +177,7 @@ func setupLogger() *slog.Logger {
 	var handler slog.Handler
 
 	opts := &slog.HandlerOptions{
-		Level: getLogLevel(),
+		Level:     getLogLevel(),
 		AddSource: config.AppConfig.Env == "development",
 	}
 

@@ -23,8 +23,8 @@ class AuthManager {
                     weekStart: 0,
                     timezone: 'UTC',
                     dateFormat: 'DD-MM-YY',
-                    showBreadcrumb: true,
-                    showMarkdownEditor: true
+                    showBreadcrumb: false,
+                    showMarkdownEditor: false
                 }
             });
             return true;
@@ -68,8 +68,8 @@ class AuthManager {
                         weekStart: 0,
                         timezone: 'UTC',
                         dateFormat: 'DD-MM-YY',
-                        showBreadcrumb: true,
-                        showMarkdownEditor: true
+                        showBreadcrumb: false,
+                        showMarkdownEditor: false
                     }
                 });
 
@@ -99,37 +99,35 @@ class AuthManager {
         this.tokenClient.requestAccessToken({ prompt: '' });
     }
 
-    async signOut() {
+    signOut() {
+        console.log('[AUTH] Starting logout...');
+        
+        // Call logout endpoint (don't wait for response)
+        fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'same-origin'
+        }).then(() => {
+            console.log('[AUTH] Logout endpoint called');
+        }).catch(err => {
+            console.error('[AUTH] Logout endpoint error:', err);
+        });
+
+        // Clear localStorage and sessionStorage
+        console.log('[AUTH] Clearing storage...');
         try {
-            state.set('isLoggingOut', true);
-            await api.logout();
-
-            state.update({
-                currentUser: null,
-                contexts: [],
-                notes: [],
-                selectedContext: null,
-                selectedDate: null
-            });
-
-            if (this.tokenClient && google.accounts.oauth2.revoke) {
-                google.accounts.oauth2.revoke(this.tokenClient.access_token);
-            }
-
-            // Clear all caches
-            await this.clearAllCaches();
-
-            events.emit('auth-logout');
-
-            setTimeout(() => {
-                state.set('isLoggingOut', false);
-                // Redirect to home page which will show login
-                window.location.href = '/';
-            }, 500);
-        } catch (error) {
-            state.set('isLoggingOut', false);
-            events.emit(EVENT.SHOW_ERROR, 'Logout failed');
+            localStorage.clear();
+            sessionStorage.clear();
+        } catch (e) {
+            console.error('[AUTH] Storage clear error:', e);
         }
+
+        // Force reload immediately
+        console.log('[AUTH] Forcing reload...');
+        setTimeout(() => {
+            window.location.href = '/';
+            // Fallback in case href doesn't work
+            setTimeout(() => window.location.reload(true), 100);
+        }, 50);
     }
 
     async clearAllCaches() {

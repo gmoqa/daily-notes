@@ -304,6 +304,12 @@ class UIManager {
             }
             // Update context selector visibility based on uniqueContextMode
             this.updateContextSelectorVisibility();
+            // Update breadcrumb visibility
+            this.updateBreadcrumbVisibility();
+            // Update markdown editor visibility
+            this.updateMarkdownEditorVisibility();
+            // Update new context button visibility
+            this.updateNewContextButtonVisibility();
         });
     }
 
@@ -313,7 +319,7 @@ class UIManager {
 
         const optionsHTML = '<option value="">Select context...</option>' +
             contextsList.map(c =>
-                `<option value="${c.name}" data-color="${c.color || '#485fc7'}">${c.name}</option>`
+                `<option value="${c.name}" data-color="${c.color || 'primary'}">${c.name}</option>`
             ).join('');
 
         // Update desktop selector
@@ -341,7 +347,8 @@ class UIManager {
             const opt = this.elements.contextSelect.options[this.elements.contextSelect.selectedIndex];
 
             if (opt?.dataset.color && opt.value !== '') {
-                this.elements.contextColorIndicator.style.background = opt.dataset.color;
+                const normalizedColor = this.normalizeToBulmaColor(opt.dataset.color);
+                this.elements.contextColorIndicator.style.background = `var(--bulma-${normalizedColor})`;
                 this.elements.contextColorIndicator.style.opacity = '1';
             } else {
                 this.elements.contextColorIndicator.style.background = 'var(--bulma-grey-light)';
@@ -354,7 +361,8 @@ class UIManager {
             const opt = this.elements.mobileContextSelect.options[this.elements.mobileContextSelect.selectedIndex];
 
             if (opt?.dataset.color && opt.value !== '') {
-                this.elements.mobileContextColorIndicator.style.background = opt.dataset.color;
+                const normalizedColor = this.normalizeToBulmaColor(opt.dataset.color);
+                this.elements.mobileContextColorIndicator.style.background = `var(--bulma-${normalizedColor})`;
                 this.elements.mobileContextColorIndicator.style.opacity = '1';
             } else {
                 this.elements.mobileContextColorIndicator.style.background = 'var(--bulma-grey-light)';
@@ -512,6 +520,9 @@ class UIManager {
         // Update breadcrumb and markdown editor visibility
         this.updateBreadcrumbVisibility();
         this.updateMarkdownEditorVisibility();
+        
+        // Update new context button visibility
+        this.updateNewContextButtonVisibility();
 
         // Check if this is first login
         const hasSeenOnboarding = localStorage.getItem('onboarding_completed');
@@ -569,7 +580,14 @@ class UIManager {
         const nameInput = document.getElementById('context-name');
         const colorInput = document.getElementById('context-color');
         if (nameInput) nameInput.value = '';
-        if (colorInput) colorInput.value = '#485fc7';
+        if (colorInput) colorInput.value = 'primary';
+        
+        // Setup color buttons handlers
+        this.setupColorButtons();
+        
+        // Reset to primary
+        this.selectColorButton('primary');
+        
         nameInput?.focus();
     }
 
@@ -596,12 +614,31 @@ class UIManager {
         }
         const showBreadcrumbSwitch = document.getElementById('show-breadcrumb-switch');
         if (showBreadcrumbSwitch) {
-            showBreadcrumbSwitch.checked = settings.showBreadcrumb !== false;
+            showBreadcrumbSwitch.checked = settings.showBreadcrumb === true;
         }
         const showMarkdownEditorSwitch = document.getElementById('show-markdown-editor-switch');
         if (showMarkdownEditorSwitch) {
-            showMarkdownEditorSwitch.checked = settings.showMarkdownEditor !== false;
+            showMarkdownEditorSwitch.checked = settings.showMarkdownEditor === true;
         }
+        const hideNewContextButtonSwitch = document.getElementById('hide-new-context-button-switch');
+        if (hideNewContextButtonSwitch) {
+            hideNewContextButtonSwitch.checked = settings.hideNewContextButton === true;
+        }
+
+        // Reset accordion to collapsed state
+        const accordionContent = document.getElementById('contexts-accordion-content');
+        const accordionIcon = document.getElementById('contexts-accordion-icon');
+        if (accordionContent) {
+            accordionContent.style.display = 'none';
+            accordionContent.style.opacity = '1'; // Reset opacity
+        }
+        if (accordionIcon) {
+            const iconElement = accordionIcon.querySelector('.material-symbols-outlined');
+            if (iconElement) iconElement.textContent = 'expand_more';
+        }
+
+        // Render contexts list
+        this.renderContextsEditList();
 
         // Reset save button state
         const saveBtn = document.getElementById('settings-save-btn');
@@ -622,6 +659,18 @@ class UIManager {
     }
 
     closeSettingsModal() {
+        // Reset accordion to collapsed state before closing
+        const accordionContent = document.getElementById('contexts-accordion-content');
+        const accordionIcon = document.getElementById('contexts-accordion-icon');
+        if (accordionContent) {
+            accordionContent.style.display = 'none';
+            accordionContent.style.opacity = '1'; // Reset opacity
+        }
+        if (accordionIcon) {
+            const iconElement = accordionIcon.querySelector('.material-symbols-outlined');
+            if (iconElement) iconElement.textContent = 'expand_more';
+        }
+        
         this.elements.settingsModal?.classList.remove('is-active');
     }
 
@@ -735,7 +784,7 @@ class UIManager {
 
     updateBreadcrumbVisibility() {
         const settings = state.get('userSettings');
-        const showBreadcrumb = settings.showBreadcrumb !== false;
+        const showBreadcrumb = settings.showBreadcrumb === true;
         
         const breadcrumb = document.getElementById('drive-breadcrumb');
         const mainSection = document.querySelector('.main-section');
@@ -757,13 +806,214 @@ class UIManager {
 
     updateMarkdownEditorVisibility() {
         const settings = state.get('userSettings');
-        const showMarkdownEditor = settings.showMarkdownEditor !== false;
+        const showMarkdownEditor = settings.showMarkdownEditor === true;
 
         // Get the Quill toolbar
         const toolbar = document.querySelector('.ql-toolbar');
         if (toolbar) {
             toolbar.style.display = showMarkdownEditor ? '' : 'none';
         }
+    }
+
+    updateNewContextButtonVisibility() {
+        const settings = state.get('userSettings');
+        const hideNewContextButton = settings.hideNewContextButton === true;
+        
+        // Get new context buttons (both desktop and mobile)
+        const desktopNewContextBtn = document.getElementById('desktop-new-context-btn');
+        const mobileNewContextBtn = document.getElementById('mobile-new-context-btn');
+        
+        // Hide or show buttons
+        if (desktopNewContextBtn) {
+            desktopNewContextBtn.style.display = hideNewContextButton ? 'none' : '';
+        }
+        if (mobileNewContextBtn) {
+            mobileNewContextBtn.style.display = hideNewContextButton ? 'none' : '';
+        }
+    }
+
+    renderContextsEditList() {
+        const contextsList = state.get('contexts');
+        const container = document.getElementById('contexts-edit-list');
+        
+        if (!container) return;
+        
+        if (contextsList.length === 0) {
+            container.innerHTML = '<p class="has-text-centered has-text-grey-light py-4">No contexts yet</p>';
+            return;
+        }
+        
+        container.innerHTML = contextsList.map(ctx => {
+            // Normalize old hex colors to Bulma colors
+            const normalizedColor = this.normalizeToBulmaColor(ctx.color);
+            const colors = ['text', 'link', 'primary', 'info', 'success', 'warning', 'danger'];
+            const colorButtons = colors.map(color => {
+                const isActive = normalizedColor === color;
+                const borderStyle = isActive ? 'border: 3px solid var(--bulma-text)' : 'border: 3px solid transparent';
+                return `
+                    <button type="button" class="button color-btn ${isActive ? 'is-active' : ''}" 
+                            data-color="${color}" 
+                            data-context-id="${ctx.id}"
+                            title="${this.getColorLabel(color)}" 
+                            style="width: 32px; height: 32px; padding: 3px; ${borderStyle}; border-radius: 6px;">
+                        <span style="display: block; width: 100%; height: 100%; background: var(--bulma-${color}); border-radius: 4px;"></span>
+                    </button>
+                `;
+            }).join('');
+            
+            return `
+            <div class="mb-3" style="padding: 1rem; background: var(--bulma-scheme-main-bis); border: 1px solid var(--bulma-border); border-radius: 6px;">
+                <div class="field" style="margin-bottom: 0.75rem;">
+                    <label class="label" style="font-size: 0.875rem; margin-bottom: 0.5rem;">Name</label>
+                    <div class="control">
+                        <input type="text" class="input is-small" value="${ctx.name}" 
+                               data-context-id="${ctx.id}" data-field="name"
+                               style="font-size: 0.875rem;">
+                    </div>
+                </div>
+                <div class="field" style="margin-bottom: 0.75rem;">
+                    <label class="label" style="font-size: 0.875rem; margin-bottom: 0.5rem;">Color</label>
+                    <div class="buttons" style="display: flex; gap: 0.5rem; margin-bottom: 0;">
+                        ${colorButtons}
+                    </div>
+                    <input type="hidden" data-context-id="${ctx.id}" data-field="color" value="${normalizedColor}">
+                </div>
+                <div class="is-flex is-justify-content-flex-end">
+                    <button class="button is-small is-primary" 
+                            onclick="window.updateContextFromSettings('${ctx.id}')"
+                            style="color: white; font-size: 0.75rem;">
+                        <span class="icon is-small">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">save</span>
+                        </span>
+                        <span>Update</span>
+                    </button>
+                </div>
+            </div>
+        `;
+        }).join('');
+        
+        // Setup color button handlers
+        this.setupContextEditColorButtons();
+    }
+    
+    setupContextEditColorButtons() {
+        const colorButtons = document.querySelectorAll('#contexts-edit-list .color-btn');
+        
+        colorButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const color = button.dataset.color;
+                const contextId = button.dataset.contextId;
+                
+                // Find the hidden input for this context
+                const hiddenInput = document.querySelector(`input[type="hidden"][data-context-id="${contextId}"][data-field="color"]`);
+                if (hiddenInput) {
+                    hiddenInput.value = color;
+                }
+                
+                // Update active state for this context's buttons
+                const contextButtons = document.querySelectorAll(`#contexts-edit-list .color-btn[data-context-id="${contextId}"]`);
+                contextButtons.forEach(btn => {
+                    btn.classList.remove('is-active');
+                    btn.style.border = '3px solid transparent';
+                    btn.style.borderRadius = '6px';
+                });
+                
+                button.classList.add('is-active');
+                button.style.border = '3px solid var(--bulma-text)';
+                button.style.borderRadius = '6px';
+            });
+        });
+    }
+
+    getColorLabel(color) {
+        const labels = {
+            'text': 'Text (Gray)',
+            'link': 'Link (Blue)',
+            'primary': 'Primary (Cyan)',
+            'info': 'Info (Light Blue)',
+            'success': 'Success (Green)',
+            'warning': 'Warning (Yellow)',
+            'danger': 'Danger (Red)'
+        };
+        return labels[color] || color;
+    }
+
+    setupColorButtons() {
+        const hiddenInput = document.getElementById('context-color');
+        
+        // Get fresh button references each time
+        const buttons = document.querySelectorAll('#context-color-buttons .color-btn');
+        if (!buttons.length) return;
+        
+        buttons.forEach(button => {
+            // Remove old listeners by cloning
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+        });
+        
+        // Get fresh references after cloning
+        const colorButtons = document.querySelectorAll('#context-color-buttons .color-btn');
+        
+        colorButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const color = button.dataset.color;
+                
+                // Update hidden input
+                if (hiddenInput) hiddenInput.value = color;
+                
+                // Update active state - get fresh references again
+                const allButtons = document.querySelectorAll('#context-color-buttons .color-btn');
+                allButtons.forEach(btn => {
+                    btn.classList.remove('is-active');
+                    btn.style.border = '3px solid transparent';
+                    btn.style.borderRadius = '8px';
+                });
+                
+                button.classList.add('is-active');
+                button.style.border = '3px solid var(--bulma-text)';
+                button.style.borderRadius = '8px';
+            });
+        });
+    }
+
+    selectColorButton(color) {
+        const colorButtons = document.querySelectorAll('#context-color-buttons .color-btn');
+        const hiddenInput = document.getElementById('context-color');
+        
+        if (hiddenInput) hiddenInput.value = color;
+        
+        colorButtons.forEach(btn => {
+            btn.classList.remove('is-active');
+            btn.style.border = '3px solid transparent';
+            btn.style.borderRadius = '8px';
+            
+            if (btn.dataset.color === color) {
+                btn.classList.add('is-active');
+                btn.style.border = `3px solid var(--bulma-text)`;
+                btn.style.borderRadius = '8px';
+            }
+        });
+    }
+
+    normalizeToBulmaColor(color) {
+        // If it's already a Bulma color name, return it
+        const bulmaColors = ['text', 'link', 'primary', 'info', 'success', 'warning', 'danger'];
+        if (bulmaColors.includes(color)) {
+            return color;
+        }
+        
+        // Map old hex colors to closest Bulma color
+        const hexToColor = {
+            '#485fc7': 'primary',
+            '#3e8ed0': 'info',
+            '#48c78e': 'success',
+            '#ffe08a': 'warning',
+            '#f14668': 'danger'
+        };
+        
+        return hexToColor[color] || 'primary';
     }
 
     setupMobileNavigation() {

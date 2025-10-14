@@ -4,6 +4,14 @@
  */
 
 /* ==========================================
+   FONT SMOOTHING
+   ========================================== */
+* {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==========================================
    APP LAYOUT
    ========================================== */
 #app-section {
@@ -170,7 +178,7 @@
     width: calc(100% - 3rem);
     min-height: calc(100vh - 4rem);
     height: calc(100vh - 4rem);
-    margin: 0.5rem 1.5rem 1.5rem 1.5rem;
+    margin: 0.5rem 1.5rem 0.5rem 1.5rem;
     background: var(--bulma-scheme-main-bis);
     border-radius: 8px;
     border: 1px solid var(--bulma-border);
@@ -297,7 +305,7 @@
 .save-indicator {
     font-size: 0.875rem;
     opacity: 0.7;
-    padding: 0 1.5rem 1rem;
+    padding: 0 1.5rem;
     transition: all var(--transition-fast) ease;
 }
 
@@ -384,7 +392,7 @@
 }
 
 .ql-editor {
-    padding: 0.75rem 1.5rem !important;
+    padding: 0.75rem 1.5rem 0.75rem 1.5rem !important;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
     font-size: 0.9375rem !important;
     line-height: 1.6 !important;
@@ -639,9 +647,9 @@
 
 /* User Settings Button */
 .calendar-panel .user-settings-btn {
-    padding: 1rem 1.5rem;
+    padding: 1rem 1.5rem 1.5rem 1.5rem;
     border-top: 1px solid var(--bulma-border);
-    background: var(--bulma-scheme-main-bis);
+    background: var(--bulma-scheme-main);
     margin-top: auto;
 }
 
@@ -662,7 +670,7 @@
     border-radius: 0.5rem;
     transition: all var(--transition-fast) ease;
     border: 1px solid var(--bulma-border);
-    background-color: transparent;
+    background-color: var(--bulma-scheme-main);
 }
 
 .calendar-panel .user-settings-btn .dropdown-trigger button:hover {
@@ -841,6 +849,25 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* Accordion Styles */
+.accordion-header {
+    user-select: none;
+    transition: background-color var(--transition-fast) ease;
+}
+
+.accordion-header:hover {
+    background-color: var(--bulma-scheme-main-ter);
+    border-radius: 4px;
+}
+
+.accordion-header .icon {
+    transition: transform var(--transition-fast) ease;
+}
+
+.accordion-content {
+    transition: opacity var(--transition-fast) ease;
 }
 
 /* ==========================================

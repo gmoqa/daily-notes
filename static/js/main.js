@@ -48,6 +48,11 @@ class Application {
             notes.handleNoteInput(content);
         });
 
+        // Apply markdown editor visibility settings after initialization
+        setTimeout(() => {
+            ui.updateMarkdownEditorVisibility();
+        }, 100);
+
         // Check authentication
         const isAuthenticated = await auth.checkAuth();
 
@@ -177,6 +182,9 @@ class Application {
             const lastContext = contexts.restoreLastContext();
             console.log('[MAIN] Last context:', lastContext);
 
+            // Update editor state based on whether we have a context
+            ui.updateEditorState();
+
             if (lastContext) {
                 // Load notes list
                 await notes.loadNotesList(lastContext);
@@ -263,14 +271,16 @@ class Application {
             const uniqueContextModeSwitch = document.getElementById('unique-context-mode-switch');
             const showBreadcrumbSwitch = document.getElementById('show-breadcrumb-switch');
             const showMarkdownEditorSwitch = document.getElementById('show-markdown-editor-switch');
+            const hideNewContextButtonSwitch = document.getElementById('hide-new-context-button-switch');
             const currentSettings = state.get('userSettings');
 
             const weekStart = parseInt(weekStartSelect?.value || '0');
             const timezone = timezoneSelect?.value || 'UTC';
             const dateFormat = dateFormatSelect?.value || 'DD-MM-YY';
             const uniqueContextMode = uniqueContextModeSwitch?.checked || false;
-            const showBreadcrumb = showBreadcrumbSwitch?.checked !== false;
-            const showMarkdownEditor = showMarkdownEditorSwitch?.checked !== false;
+            const showBreadcrumb = showBreadcrumbSwitch?.checked === true;
+            const showMarkdownEditor = showMarkdownEditorSwitch?.checked === true;
+            const hideNewContextButton = hideNewContextButtonSwitch?.checked === true;
             const theme = currentSettings.theme || 'dark'; // Keep current theme
 
             // Show loading state
@@ -281,9 +291,9 @@ class Application {
             if (saveText) saveText.textContent = 'Saving...';
 
             try {
-                await api.updateSettings({ theme, weekStart, timezone, dateFormat, uniqueContextMode, showBreadcrumb, showMarkdownEditor });
+                await api.updateSettings({ theme, weekStart, timezone, dateFormat, uniqueContextMode, showBreadcrumb, showMarkdownEditor, hideNewContextButton });
 
-                state.set('userSettings', { theme, weekStart, timezone, dateFormat, uniqueContextMode, showBreadcrumb, showMarkdownEditor });
+                state.set('userSettings', { theme, weekStart, timezone, dateFormat, uniqueContextMode, showBreadcrumb, showMarkdownEditor, hideNewContextButton });
                 calendar.render();
 
                 // Show success state briefly
@@ -308,6 +318,9 @@ class Application {
                 // Update breadcrumb and markdown editor visibility
                 ui.updateBreadcrumbVisibility();
                 ui.updateMarkdownEditorVisibility();
+                
+                // Update new context button visibility
+                ui.updateNewContextButtonVisibility();
 
                 // If unique context mode is enabled, select first context
                 if (uniqueContextMode) {
@@ -337,6 +350,60 @@ class Application {
         };
 
         window.closeOnboardingModal = () => ui.closeOnboardingModal();
+
+        window.updateContextFromSettings = async (contextId) => {
+            const nameInput = document.querySelector(`input[data-context-id="${contextId}"][data-field="name"]`);
+            const colorInput = document.querySelector(`input[type="hidden"][data-context-id="${contextId}"][data-field="color"]`);
+            
+            if (!nameInput || !colorInput) return;
+            
+            const name = nameInput.value.trim();
+            const color = colorInput.value;
+            
+            if (!name) {
+                events.emit(EVENT.SHOW_ERROR, 'Context name cannot be empty');
+                return;
+            }
+            
+            const success = await contexts.updateContext(contextId, name, color);
+            if (success) {
+                // Refresh the contexts list in the modal
+                ui.renderContextsEditList();
+                // Refresh the contexts selectors
+                ui.renderContextsSelect();
+            }
+        };
+
+        window.toggleContextsAccordion = () => {
+            const content = document.getElementById('contexts-accordion-content');
+            const icon = document.getElementById('contexts-accordion-icon');
+            
+            if (!content || !icon) return;
+            
+            // Check if expanded by looking at the display property
+            const isExpanded = content.style.display === 'block';
+            
+            const iconElement = icon.querySelector('.material-symbols-outlined');
+            if (!iconElement) return;
+            
+            if (isExpanded) {
+                // Collapse with smooth transition
+                content.style.opacity = '0';
+                setTimeout(() => {
+                    content.style.display = 'none';
+                    content.style.opacity = '1';
+                }, 150);
+                iconElement.textContent = 'expand_more';
+            } else {
+                // Expand with smooth transition
+                content.style.display = 'block';
+                content.style.opacity = '0';
+                setTimeout(() => {
+                    content.style.opacity = '1';
+                }, 10);
+                iconElement.textContent = 'expand_less';
+            }
+        };
 
         // Enter key support for modals
         document.getElementById('context-name')?.addEventListener('keypress', (e) => {
