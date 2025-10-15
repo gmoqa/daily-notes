@@ -846,21 +846,13 @@ class UIManager {
             toolbar.style.display = showMarkdownEditor ? '' : 'none';
         }
 
-        // Also disable/enable the editor itself to prevent interaction when toolbar is hidden
+        // The editor itself should remain enabled based on context selection,
+        // regardless of toolbar visibility
         import('./markdown-editor.js').then(({ markdownEditor }) => {
             if (markdownEditor.editor) {
-                // When toolbar is hidden, make editor read-only
-                // When toolbar is shown, restore editor to enabled state
                 const context = state.get('selectedContext');
-                const shouldBeReadOnly = !showMarkdownEditor;
-
-                if (shouldBeReadOnly) {
-                    // Make editor read-only when toolbar is hidden
-                    markdownEditor.editor.enable(false);
-                } else {
-                    // Restore editor state based on whether we have a context
-                    markdownEditor.editor.enable(context ? true : false);
-                }
+                // Editor should be enabled if we have a context, regardless of toolbar visibility
+                markdownEditor.editor.enable(context ? true : false);
             }
         });
     }
