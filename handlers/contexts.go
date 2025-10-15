@@ -134,9 +134,43 @@ func UpdateContext(c *fiber.Ctx) error {
 		return badRequest(c, "color must be one of: text, link, primary, info, success, warning, danger")
 	}
 
-	// Update in local database
+	// Get the old context to check if name is changing
+	oldContext, err := repo.GetContextByID(contextID)
+	if err != nil {
+		return serverErrorWithDetails(c, "Failed to fetch context", err)
+	}
+	if oldContext == nil {
+		return badRequest(c, "Context not found")
+	}
+
+	userID := middleware.GetUserID(c)
+
+	// If name changed, we need to update all notes that use this context
+	nameChanged := oldContext.Name != req.Name
+
+	// Update context in local database
 	if err := repo.UpdateContext(contextID, req.Name, req.Color); err != nil {
 		return serverErrorWithDetails(c, "Failed to update context", err)
+	}
+
+	// If name changed, update all notes with the new context name
+	if nameChanged {
+		if err := repo.UpdateNotesContextName(oldContext.Name, req.Name, userID); err != nil {
+			return serverErrorWithDetails(c, "Failed to update notes with new context name", err)
+		}
+
+		// Also rename folder in Google Drive
+		driveService, err := getDriveService(c)
+		if err != nil {
+			// Log error but don't fail the request since local DB was updated
+			// User can manually rename the folder or it will be created on next sync
+			c.Append("X-Warning", "Context updated locally but Drive sync failed. Please check your Google Drive connection.")
+		} else {
+			if err := driveService.RenameContext(contextID, oldContext.Name, req.Name); err != nil {
+				// Log error but don't fail the request
+				c.Append("X-Warning", "Context updated locally but Drive folder rename failed. You may need to manually rename the folder in Google Drive.")
+			}
+		}
 	}
 
 	return success(c, fiber.Map{"message": "Context updated successfully"})

@@ -254,6 +254,45 @@ func (s *Service) CreateContext(name, color string) (*models.Context, error) {
 	return &newContext, nil
 }
 
+func (s *Service) RenameContext(contextID, oldName, newName string) error {
+	// Get the config
+	config, err := s.GetConfig()
+	if err != nil {
+		return err
+	}
+
+	// Find the context and update its name in config
+	var contextFound bool
+	for i, ctx := range config.Contexts {
+		if ctx.ID == contextID {
+			config.Contexts[i].Name = newName
+			contextFound = true
+			break
+		}
+	}
+
+	if !contextFound {
+		return errors.New("context not found")
+	}
+
+	// Rename the folder in Google Drive
+	fileMetadata := &drive.File{
+		Name: newName,
+	}
+
+	_, err = s.client.Files.Update(contextID, fileMetadata).Do()
+	if err != nil {
+		return fmt.Errorf("failed to rename folder in Drive: %w", err)
+	}
+
+	// Save the updated config
+	if err := s.SaveConfig(config); err != nil {
+		return fmt.Errorf("failed to save config after rename: %w", err)
+	}
+
+	return nil
+}
+
 func (s *Service) DeleteContext(contextID string) error {
 	config, err := s.GetConfig()
 	if err != nil {

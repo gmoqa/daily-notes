@@ -133,6 +133,16 @@ func (r *Repository) UpdateContext(contextID string, name string, color string) 
 	return err
 }
 
+func (r *Repository) UpdateNotesContextName(oldName string, newName string, userID string) error {
+	_, err := r.db.Exec(`
+		UPDATE notes SET
+			context = ?,
+			updated_at = ?
+		WHERE context = ? AND user_id = ?
+	`, newName, time.Now(), oldName, userID)
+	return err
+}
+
 func (r *Repository) DeleteContext(contextID string) error {
 	_, err := r.db.Exec("DELETE FROM contexts WHERE id = ?", contextID)
 	return err
@@ -145,6 +155,24 @@ func (r *Repository) GetContextByName(userID, name string) (*models.Context, err
 		FROM contexts
 		WHERE user_id = ? AND name = ?
 	`, userID, name).Scan(&ctx.ID, &ctx.UserID, &ctx.Name, &ctx.Color, &ctx.CreatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &ctx, nil
+}
+
+func (r *Repository) GetContextByID(contextID string) (*models.Context, error) {
+	var ctx models.Context
+	err := r.db.QueryRow(`
+		SELECT id, user_id, name, color, created_at
+		FROM contexts
+		WHERE id = ?
+	`, contextID).Scan(&ctx.ID, &ctx.UserID, &ctx.Name, &ctx.Color, &ctx.CreatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
