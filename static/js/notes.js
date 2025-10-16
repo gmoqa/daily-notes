@@ -13,6 +13,7 @@ class NotesManager {
         this.saveTimeout = null;
         this.currentNoteContent = '';
         this.currentLoadToken = 0; // Token to cancel old load operations
+        this.currentSelectToken = 0; // Token to cancel old date selection operations
     }
 
     async loadNote(context, date) {
@@ -249,7 +250,11 @@ class NotesManager {
         }, 500);
     }
 
-    selectDate(dateStr) {
+    async selectDate(dateStr) {
+        // Increment token to cancel any previous select operations
+        const selectToken = ++this.currentSelectToken;
+        console.log(`[Notes] selectDate started - token: ${selectToken}, date: ${dateStr}`);
+
         const context = state.get('selectedContext');
 
         // Parse the date
@@ -264,13 +269,25 @@ class NotesManager {
             currentCalendarYear: year
         });
 
+        // Validate token before proceeding
+        if (selectToken !== this.currentSelectToken) {
+            console.log(`[Notes] selectDate cancelled - token ${selectToken} is stale`);
+            return;
+        }
+
         events.emit(EVENT.DATE_CHANGED, dateStr);
 
         // Load note for this date
         if (context) {
+            // Validate token again before loading
+            if (selectToken !== this.currentSelectToken) {
+                console.log(`[Notes] selectDate cancelled before load - token ${selectToken} is stale`);
+                return;
+            }
+
             // Create note in local list immediately if it doesn't exist
             this.ensureNoteInList(context, dateStr);
-            this.loadNote(context, dateStr);
+            await this.loadNote(context, dateStr);
         }
     }
 

@@ -111,8 +111,15 @@ class UIManager {
         });
 
         // Date picker
-        this.elements.datePicker?.addEventListener('change', (e) => {
-            notes.selectDate(e.target.value);
+        this.elements.datePicker?.addEventListener('change', async (e) => {
+            const dateStr = e.target.value;
+            // Check if this date is already selected
+            const currentDate = state.get('selectedDate');
+            if (currentDate === dateStr) {
+                console.log('[UI] Date picker: date already selected, skipping:', dateStr);
+                return;
+            }
+            await notes.selectDate(dateStr);
         });
 
         // Calendar navigation
@@ -437,10 +444,17 @@ class UIManager {
 
         // Add click handlers for notes
         this.elements.notesList.querySelectorAll('a[data-date]').forEach(link => {
-            link.addEventListener('click', () => {
+            link.addEventListener('click', async (e) => {
+                e.preventDefault(); // Prevent default link behavior
                 const dateStr = link.dataset.date;
                 if (dateStr) {
-                    notes.selectDate(dateStr);
+                    // Check if this date is already selected
+                    const currentDate = state.get('selectedDate');
+                    if (currentDate === dateStr) {
+                        console.log('[UI] Date already selected, skipping:', dateStr);
+                        return;
+                    }
+                    await notes.selectDate(dateStr);
                 }
             });
         });
