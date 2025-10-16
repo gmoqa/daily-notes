@@ -26,27 +26,46 @@ class NotesManager {
             this.currentNoteContent = cachedNote.content;
             events.emit(EVENT.NOTE_LOADED, {
                 content: this.currentNoteContent,
-                fromCache: true
+                fromCache: true,
+                cachedAt: cachedNote._cachedAt
             });
         }
 
         // Then load from server in background
         try {
             const { note } = await api.getNote(context, date);
-            this.currentNoteContent = note.content || '';
 
-            // Update cache with server data
-            await cache.saveNote({
-                context,
-                date,
-                content: note.content
-            });
+            // Determine which version is more recent
+            const serverUpdatedAt = note.updated_at ? new Date(note.updated_at).getTime() : 0;
+            const cachedUpdatedAt = cachedNote?.updated_at ? new Date(cachedNote.updated_at).getTime() : 0;
 
-            // Always emit from server (authoritative source)
-            events.emit(EVENT.NOTE_LOADED, {
-                content: this.currentNoteContent,
-                fromCache: false
-            });
+            // Only update if server has newer content OR cache is empty
+            const shouldUpdateFromServer = !cachedNote ||
+                                         serverUpdatedAt > cachedUpdatedAt ||
+                                         (note.content && !cachedNote.content);
+
+            if (shouldUpdateFromServer) {
+                this.currentNoteContent = note.content || '';
+
+                // Update cache with server data
+                await cache.saveNote({
+                    context,
+                    date,
+                    content: note.content,
+                    updated_at: note.updated_at
+                });
+
+                // Only emit if content actually changed
+                if (!cachedNote || cachedNote.content !== note.content) {
+                    events.emit(EVENT.NOTE_LOADED, {
+                        content: this.currentNoteContent,
+                        fromCache: false,
+                        serverUpdatedAt: note.updated_at
+                    });
+                }
+            } else {
+                console.log('[Notes] Cache is newer than server, keeping cached version');
+            }
 
             return note;
         } catch (error) {
@@ -54,6 +73,8 @@ class NotesManager {
             if (!cachedNote) {
                 console.error('Failed to load note:', error);
                 events.emit(EVENT.SHOW_ERROR, 'Failed to load note. Working offline.');
+            } else {
+                console.warn('[Notes] Server unavailable, using cached version');
             }
             return cachedNote;
         }
@@ -62,13 +83,19 @@ class NotesManager {
     async saveNote(context, date, content) {
         if (!context || !date) return;
 
-        const note = { context, date, content };
+        const now = new Date().toISOString();
+        const note = {
+            context,
+            date,
+            content,
+            updated_at: now
+        };
 
         // 1. Save to local cache immediately (optimistic)
         await cache.saveNote(note);
         this.currentNoteContent = content;
 
-        events.emit(EVENT.NOTE_SAVED, { local: true });
+        events.emit(EVENT.NOTE_SAVED, { local: true, timestamp: now });
 
         // 2. Update note in the list (update content, keep position)
         this.updateNoteInList(context, date, content);
@@ -76,7 +103,8 @@ class NotesManager {
         // 3. Queue for background sync with Drive
         events.emit('sync-add', {
             type: 'save-note',
-            data: note
+            data: note,
+            timestamp: now
         });
     }
 
