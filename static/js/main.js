@@ -125,6 +125,10 @@ class Application {
             const context = e.detail;
             console.log('[MAIN] CONTEXT_CHANGED event - context:', context);
 
+            // Cancel any pending date selection operations
+            notes.currentSelectToken++;
+            console.log('[MAIN] Cancelled pending date selections, new token:', notes.currentSelectToken);
+
             // Force flush any pending editor changes
             markdownEditor.forceFlush();
 
@@ -153,7 +157,8 @@ class Application {
                 // Load notes list for new context
                 await notes.loadNotesList(context);
 
-                // Render calendar with current date selection
+                // Update UI to reflect new notes list immediately
+                // This prevents showing stale list while loading
                 calendar.render();
 
                 // Ensure the selected note exists in the list
@@ -163,6 +168,7 @@ class Application {
                 console.log('[MAIN] Loading note for context:', context, 'date:', selectedDate);
                 await notes.loadNote(context, selectedDate);
             } else {
+                // No context selected - clear editor and show empty state
                 markdownEditor.setContent('');
             }
         });
@@ -170,6 +176,8 @@ class Application {
         // Date events
         events.on(EVENT.DATE_CHANGED, async (e) => {
             const dateStr = e.detail;
+            console.log('[MAIN] DATE_CHANGED event - date:', dateStr);
+
             const context = state.get('selectedContext');
 
             // Force flush any pending editor changes
@@ -185,6 +193,16 @@ class Application {
             }
 
             if (context) {
+                // Verify context hasn't changed during the async operations
+                const currentContext = state.get('selectedContext');
+                const currentDate = state.get('selectedDate');
+
+                if (currentContext !== context || currentDate !== dateStr) {
+                    console.log('[MAIN] Context/date changed during DATE_CHANGED handler, skipping load');
+                    console.log('[MAIN] Expected:', context, dateStr, 'Got:', currentContext, currentDate);
+                    return;
+                }
+
                 await notes.loadNote(context, dateStr);
             }
         });
