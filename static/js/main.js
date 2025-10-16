@@ -61,10 +61,11 @@ class Application {
         // Make body visible after determining which section to show
         document.body.classList.add('loaded');
 
-        // Initialize Google OAuth client
-        if (typeof google !== 'undefined') {
-            auth.initGoogleClient(googleClientId);
-        }
+        // Initialize Google OAuth client (async, will wait for script to load)
+        auth.initGoogleClient(googleClientId).catch(error => {
+            console.error('[MAIN] Failed to initialize Google client:', error);
+            // Non-fatal error - user can still refresh the page
+        });
     }
 
     setupEventHandlers() {

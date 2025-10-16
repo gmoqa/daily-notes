@@ -10,6 +10,7 @@ import { events, EVENT } from './events.js';
 class AuthManager {
     constructor() {
         this.tokenClient = null;
+        this.initializationPromise = null;
     }
 
     async checkAuth() {
@@ -33,14 +34,52 @@ class AuthManager {
         return false;
     }
 
-    initGoogleClient(clientId) {
-        if (!this.tokenClient) {
-            this.tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: 'https://www.googleapis.com/auth/drive.file openid profile email',
-                callback: (tokenResponse) => this.handleGoogleLogin(tokenResponse)
-            });
+    async initGoogleClient(clientId) {
+        // Return existing initialization promise if already in progress
+        if (this.initializationPromise) {
+            return this.initializationPromise;
         }
+
+        // Return immediately if already initialized
+        if (this.tokenClient) {
+            return Promise.resolve();
+        }
+
+        // Create initialization promise
+        this.initializationPromise = new Promise((resolve, reject) => {
+            // Wait for Google API to be loaded
+            const checkGoogleLoaded = () => {
+                if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+                    try {
+                        this.tokenClient = google.accounts.oauth2.initTokenClient({
+                            client_id: clientId,
+                            scope: 'https://www.googleapis.com/auth/drive.file openid profile email',
+                            callback: (tokenResponse) => this.handleGoogleLogin(tokenResponse)
+                        });
+                        console.log('[AUTH] Google client initialized successfully');
+                        resolve();
+                    } catch (error) {
+                        console.error('[AUTH] Failed to initialize Google client:', error);
+                        reject(error);
+                    }
+                } else {
+                    // Retry after a short delay
+                    setTimeout(checkGoogleLoaded, 100);
+                }
+            };
+
+            // Start checking
+            checkGoogleLoaded();
+
+            // Set a timeout to prevent infinite waiting
+            setTimeout(() => {
+                if (!this.tokenClient) {
+                    reject(new Error('Google API failed to load within timeout'));
+                }
+            }, 10000); // 10 second timeout
+        });
+
+        return this.initializationPromise;
     }
 
     async handleGoogleLogin(tokenResponse) {
@@ -86,17 +125,25 @@ class AuthManager {
         }
     }
 
-    signIn() {
-        if (!this.tokenClient) {
-            events.emit(EVENT.SHOW_ERROR, 'Google client not initialized');
-            return;
-        }
-
-        // Show loading indicator
+    async signIn() {
+        // Show loading indicator immediately
         const loader = document.getElementById('landing-loader');
         if (loader) loader.classList.add('visible');
 
-        this.tokenClient.requestAccessToken({ prompt: '' });
+        try {
+            // Wait for initialization to complete if not already done
+            await this.initializationPromise;
+
+            if (!this.tokenClient) {
+                throw new Error('Google client not initialized');
+            }
+
+            this.tokenClient.requestAccessToken({ prompt: '' });
+        } catch (error) {
+            console.error('[AUTH] Sign in failed:', error);
+            if (loader) loader.classList.remove('visible');
+            events.emit(EVENT.SHOW_ERROR, 'Failed to initialize Google sign-in. Please refresh the page.');
+        }
     }
 
     signOut() {
