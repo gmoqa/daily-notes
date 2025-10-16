@@ -43,12 +43,14 @@ export class LocalCache {
         if (!this.db) return;
 
         const id = `${note.context}-${note.date}`;
-        
+
         // Add to pending writes (batching)
         this.pendingWrites.set(id, {
             ...note,
             id,
-            _localTimestamp: Date.now()
+            _localTimestamp: Date.now(),
+            _cachedAt: Date.now(),
+            updated_at: note.updated_at || new Date().toISOString()
         });
 
         // Schedule batch write
@@ -100,7 +102,9 @@ export class LocalCache {
         store.put({
             ...note,
             id,
-            _localTimestamp: Date.now()
+            _localTimestamp: Date.now(),
+            _cachedAt: Date.now(),
+            updated_at: note.updated_at || new Date().toISOString()
         });
 
         return new Promise((resolve, reject) => {
@@ -128,13 +132,16 @@ export class LocalCache {
 
         const tx = this.db.transaction(['notes'], 'readwrite');
         const store = tx.objectStore('notes');
+        const now = Date.now();
 
         notes.forEach(note => {
             const id = `${note.context}-${note.date}`;
             store.put({
                 ...note,
                 id,
-                _localTimestamp: Date.now()
+                _localTimestamp: now,
+                _cachedAt: now,
+                updated_at: note.updated_at || new Date().toISOString()
             });
         });
 

@@ -12,6 +12,7 @@ class MarkdownEditor {
         this.editorElement = null;
         this.onChangeCallback = null;
         this.isUpdating = false;
+        this.currentNoteContent = '';
     }
 
     async init(containerId, onChange) {
@@ -231,7 +232,7 @@ class MarkdownEditor {
     async setContent(content) {
         // Lazy load Quill when content is set
         await this.ensureQuillLoaded();
-        
+
         if (!this.editor) return;
 
         this.isUpdating = true;
@@ -239,12 +240,16 @@ class MarkdownEditor {
         try {
             if (!content) {
                 this.editor.setText('');
+                this.currentNoteContent = '';
                 return;
             }
 
             // Convert markdown to Quill Delta
             const delta = this.markdownToDelta(content);
             this.editor.setContents(delta);
+
+            // Track the current content for comparison
+            this.currentNoteContent = content;
         } finally {
             this.isUpdating = false;
         }
@@ -402,6 +407,32 @@ class MarkdownEditor {
         if (this.editor) {
             this.editor.focus();
         }
+    }
+
+    /**
+     * Force flush any pending changes immediately
+     * Used before context/date changes to prevent data loss
+     */
+    forceFlush() {
+        if (!this.editor || this.isUpdating) return;
+
+        const markdown = this.getMarkdown();
+
+        // Clear any pending debounced save
+        if (this.onChangeCallback) {
+            this.onChangeCallback(markdown);
+        }
+    }
+
+    /**
+     * Check if there are pending changes
+     */
+    hasPendingChanges() {
+        // If there's no editor, no pending changes
+        if (!this.editor) return false;
+
+        const currentContent = this.getMarkdown();
+        return currentContent !== this.currentNoteContent;
     }
 }
 

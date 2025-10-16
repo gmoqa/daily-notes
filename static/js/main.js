@@ -87,6 +87,29 @@ class Application {
             console.log('Synced to Drive:', e.detail.type);
         });
 
+        events.on(EVENT.SYNC_ERROR, (e) => {
+            const { error, maxRetriesReached, retryCount, maxRetries } = e.detail;
+
+            if (maxRetriesReached) {
+                notifications.error('Failed to sync note after multiple attempts. Please check your connection.', {
+                    title: 'Sync Failed',
+                    duration: 5000
+                });
+            } else if (retryCount) {
+                console.warn(`Sync retry ${retryCount}/${maxRetries}:`, error);
+            }
+        });
+
+        events.on('session-expired', (e) => {
+            if (e.detail.isNoteRequest) {
+                notifications.warning('Session expired. Your notes are saved locally and will sync when you sign in again.', {
+                    title: 'Session Expired',
+                    duration: 10000,
+                    dismissible: true
+                });
+            }
+        });
+
         // Note events
         events.on(EVENT.NOTE_LOADED, (e) => {
             markdownEditor.setContent(e.detail.content);
@@ -100,8 +123,15 @@ class Application {
         events.on(EVENT.CONTEXT_CHANGED, async (e) => {
             const context = e.detail;
 
+            // Force flush any pending editor changes
+            markdownEditor.forceFlush();
+
+            // Wait a bit for the flush to be processed
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             // Flush pending saves before switching
             if (this.syncQueue.getPendingCount() > 0) {
+                console.log('[MAIN] Flushing pending saves before context change...');
                 await this.syncQueue.process();
             }
 
@@ -121,8 +151,15 @@ class Application {
             const dateStr = e.detail;
             const context = state.get('selectedContext');
 
+            // Force flush any pending editor changes
+            markdownEditor.forceFlush();
+
+            // Wait a bit for the flush to be processed
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             // Flush pending saves before switching dates
             if (this.syncQueue.getPendingCount() > 0) {
+                console.log('[MAIN] Flushing pending saves before date change...');
                 await this.syncQueue.process();
             }
 
@@ -403,6 +440,17 @@ class Application {
         // Enter key support for modals
         document.getElementById('context-name')?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') window.createContext();
+        });
+
+        // Warn before closing if there are pending sync operations
+        window.addEventListener('beforeunload', (e) => {
+            const pendingCount = this.syncQueue.getPendingCount();
+            if (pendingCount > 0) {
+                const message = `You have ${pendingCount} note${pendingCount !== 1 ? 's' : ''} pending sync. Your changes are saved locally but haven't been synced to Drive yet.`;
+                e.preventDefault();
+                e.returnValue = message;
+                return message;
+            }
         });
     }
 }

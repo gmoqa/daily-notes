@@ -25,9 +25,16 @@ class APIClient {
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
 
-                if (response.status === 401) {
+                if (response.status === 401 || response.status === 403) {
                     if (!state.get('isLoggingOut')) {
-                        events.emit(EVENT.SHOW_ERROR, 'Session expired. Please login again.');
+                        // Check if this is a note-related request
+                        const isNoteRequest = endpoint.includes('/api/notes');
+                        const message = isNoteRequest
+                            ? 'Session expired. Your notes are saved locally and will sync when you sign in again.'
+                            : 'Session expired. Please login again.';
+
+                        events.emit(EVENT.SHOW_ERROR, message);
+                        events.emit('session-expired', { isNoteRequest });
                     }
                     state.set('currentUser', null);
                     throw new Error('Session expired');
@@ -39,7 +46,10 @@ class APIClient {
             return await response.json();
         } catch (error) {
             if (!state.get('isLoggingOut')) {
-                events.emit(EVENT.SHOW_ERROR, error.message || 'An error occurred');
+                // Don't show error notification if it's already been handled
+                if (!error.message.includes('Session expired')) {
+                    events.emit(EVENT.SHOW_ERROR, error.message || 'An error occurred');
+                }
             }
             throw error;
         }
