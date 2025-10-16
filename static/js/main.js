@@ -123,6 +123,7 @@ class Application {
         // Context events
         events.on(EVENT.CONTEXT_CHANGED, async (e) => {
             const context = e.detail;
+            console.log('[MAIN] CONTEXT_CHANGED event - context:', context);
 
             // Force flush any pending editor changes
             markdownEditor.forceFlush();
@@ -137,10 +138,29 @@ class Application {
             }
 
             if (context) {
-                notes.setTodayDate();
+                // Get current selected date BEFORE loading notes list
+                // This preserves the user's date selection when switching contexts
+                let selectedDate = state.get('selectedDate');
+                console.log('[MAIN] Current selectedDate:', selectedDate);
+
+                // If no date is selected yet, default to today
+                if (!selectedDate) {
+                    selectedDate = state.get('today');
+                    console.log('[MAIN] No date selected, defaulting to today:', selectedDate);
+                    notes.setTodayDate();
+                }
+
+                // Load notes list for new context
                 await notes.loadNotesList(context);
+
+                // Render calendar with current date selection
                 calendar.render();
-                const selectedDate = state.get('selectedDate');
+
+                // Ensure the selected note exists in the list
+                notes.ensureNoteInList(context, selectedDate);
+
+                // Load the note with the preserved date
+                console.log('[MAIN] Loading note for context:', context, 'date:', selectedDate);
                 await notes.loadNote(context, selectedDate);
             } else {
                 markdownEditor.setContent('');

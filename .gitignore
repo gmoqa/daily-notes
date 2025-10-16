@@ -52,3 +52,7 @@ static/icons/*.png
 
 # Templ generated files
 *_templ.go
+
+# Node.js dependencies and test coverage
+node_modules/
+coverage/
