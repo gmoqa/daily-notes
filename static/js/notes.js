@@ -29,6 +29,14 @@ class NotesManager {
                 fromCache: true,
                 cachedAt: cachedNote._cachedAt
             });
+        } else {
+            // No cached note or empty content - show blank editor immediately
+            this.currentNoteContent = '';
+            events.emit(EVENT.NOTE_LOADED, {
+                content: '',
+                fromCache: false,
+                isBlank: true
+            });
         }
 
         // Then load from server in background
