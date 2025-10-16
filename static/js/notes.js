@@ -12,6 +12,7 @@ class NotesManager {
     constructor() {
         this.saveTimeout = null;
         this.currentNoteContent = '';
+        this.currentLoadToken = 0; // Token to cancel old load operations
     }
 
     async loadNote(context, date) {
@@ -19,8 +20,19 @@ class NotesManager {
             return null;
         }
 
+        // Increment token to cancel any previous load operations
+        const loadToken = ++this.currentLoadToken;
+        console.log(`[Notes] loadNote started - token: ${loadToken}, context: ${context}, date: ${date}`);
+
         // Try local cache first (instant load)
         const cachedNote = await cache.getNote(context, date);
+
+        // Validate token before emitting cached content
+        if (loadToken !== this.currentLoadToken) {
+            console.log(`[Notes] Load cancelled (cache) - token ${loadToken} is stale`);
+            return null;
+        }
+
         if (cachedNote && cachedNote.content) {
             // Only emit if cache has actual content
             this.currentNoteContent = cachedNote.content;
@@ -42,6 +54,12 @@ class NotesManager {
         // Then load from server in background
         try {
             const { note } = await api.getNote(context, date);
+
+            // Validate token before applying server data
+            if (loadToken !== this.currentLoadToken) {
+                console.log(`[Notes] Load cancelled (server) - token ${loadToken} is stale`);
+                return null;
+            }
 
             // Determine which version is more recent
             const serverUpdatedAt = note.updated_at ? new Date(note.updated_at).getTime() : 0;
@@ -77,6 +95,12 @@ class NotesManager {
 
             return note;
         } catch (error) {
+            // Validate token before handling error
+            if (loadToken !== this.currentLoadToken) {
+                console.log(`[Notes] Load cancelled (error) - token ${loadToken} is stale`);
+                return null;
+            }
+
             // If cached version exists, user already sees it
             if (!cachedNote) {
                 console.error('Failed to load note:', error);
@@ -204,14 +228,24 @@ class NotesManager {
     handleNoteInput(content) {
         clearTimeout(this.saveTimeout);
 
-        const context = state.get('selectedContext');
-        const date = state.get('selectedDate');
+        // Capture current context and date at the time of input
+        const capturedContext = state.get('selectedContext');
+        const capturedDate = state.get('selectedDate');
 
-        if (!context || !date) return;
+        if (!capturedContext || !capturedDate) return;
 
         // Debounce save - reduced from 1000ms to 500ms for better UX
         this.saveTimeout = setTimeout(() => {
-            this.saveNote(context, date, content);
+            // Re-validate that context and date haven't changed
+            const currentContext = state.get('selectedContext');
+            const currentDate = state.get('selectedDate');
+
+            if (currentContext === capturedContext && currentDate === capturedDate) {
+                console.log(`[Notes] Saving note - context: ${capturedContext}, date: ${capturedDate}`);
+                this.saveNote(capturedContext, capturedDate, content);
+            } else {
+                console.log(`[Notes] Save cancelled - context/date changed from ${capturedContext}/${capturedDate} to ${currentContext}/${currentDate}`);
+            }
         }, 500);
     }
 

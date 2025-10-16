@@ -95,31 +95,19 @@ class UIManager {
 
     setupEventListeners() {
         // Context selection (desktop)
+        // Just update state - the CONTEXT_CHANGED event handler will do the rest
         this.elements.contextSelect?.addEventListener('change', (e) => {
             const context = e.target.value;
+            console.log('[UI] Desktop context selector changed:', context);
             contexts.selectContext(context);
-            if (context) {
-                notes.setTodayDate();
-                notes.loadNotesList(context);
-            }
-            // Sync with mobile select
-            if (this.elements.mobileContextSelect) {
-                this.elements.mobileContextSelect.value = context;
-            }
         });
 
         // Context selection (mobile)
+        // Just update state - the CONTEXT_CHANGED event handler will do the rest
         this.elements.mobileContextSelect?.addEventListener('change', (e) => {
             const context = e.target.value;
+            console.log('[UI] Mobile context selector changed:', context);
             contexts.selectContext(context);
-            if (context) {
-                notes.setTodayDate();
-                notes.loadNotesList(context);
-            }
-            // Sync with desktop select
-            if (this.elements.contextSelect) {
-                this.elements.contextSelect.value = context;
-            }
         });
 
         // Date picker
