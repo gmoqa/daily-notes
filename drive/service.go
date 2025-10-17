@@ -643,3 +643,36 @@ func (s *Service) DeleteNote(contextName, date string) error {
 	// Delete the file (move to trash)
 	return s.client.Files.Delete(fileList.Files[0].Id).Do()
 }
+
+// IsFirstLogin checks if the user has any data in Google Drive
+// Returns true if the dailynotes.dev folder doesn't exist or has no config.json
+func (s *Service) IsFirstLogin() (bool, error) {
+	// Check if dailynotes.dev folder exists
+	query := "name='dailynotes.dev' and mimeType='application/vnd.google-apps.folder' and trashed=false and 'root' in parents"
+	fileList, err := s.client.Files.List().
+		Q(query).
+		Fields("files(id)").
+		Do()
+	if err != nil {
+		return false, err
+	}
+
+	// If folder doesn't exist, it's first login
+	if len(fileList.Files) == 0 {
+		return true, nil
+	}
+
+	// Folder exists, check if config.json exists
+	rootFolderID := fileList.Files[0].Id
+	configQuery := fmt.Sprintf("name='config.json' and '%s' in parents and trashed=false", rootFolderID)
+	configList, err := s.client.Files.List().
+		Q(configQuery).
+		Fields("files(id)").
+		Do()
+	if err != nil {
+		return false, err
+	}
+
+	// If no config.json, it's first login
+	return len(configList.Files) == 0, nil
+}

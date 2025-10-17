@@ -645,9 +645,16 @@ class UIManager {
         // Update new context button visibility
         this.updateNewContextButtonVisibility();
 
-        // Check if this is first login
+        // Check if this is first login based on backend response
+        const isFirstLogin = state.get('isFirstLogin');
         const hasSeenOnboarding = localStorage.getItem('onboarding_completed');
-        if (!hasSeenOnboarding) {
+        const isDevelopment = window.__ENV__ === 'development';
+
+        // Show onboarding if:
+        // - In development mode (for testing), OR
+        // - It's the user's first login (verified by Google Drive), OR
+        // - They haven't seen it yet (fallback for existing users)
+        if (isDevelopment || isFirstLogin || !hasSeenOnboarding) {
             setTimeout(() => {
                 this.elements.onboardingModal?.classList.add('is-active');
             }, 500);
