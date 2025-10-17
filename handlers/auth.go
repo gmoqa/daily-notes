@@ -14,6 +14,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 var syncWorker *sync.Worker
@@ -30,64 +31,135 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	if req.AccessToken == "" {
+	// Support both authorization code flow and direct token flow
+	var token *oauth2.Token
+	var googleID, email, name, picture string
+
+	if req.Code != "" {
+		// Authorization Code Flow - exchange code for tokens
+		log.Printf("[AUTH] Using authorization code flow")
+		
+		ctx := context.Background()
+		oauthConfig := &oauth2.Config{
+			ClientID:     config.AppConfig.GoogleClientID,
+			ClientSecret: config.AppConfig.GoogleClientSecret,
+			RedirectURL:  config.AppConfig.GoogleRedirectURL,
+			Scopes: []string{
+				"https://www.googleapis.com/auth/drive.file",
+				"https://www.googleapis.com/auth/userinfo.profile",
+				"https://www.googleapis.com/auth/userinfo.email",
+			},
+			Endpoint: google.Endpoint,
+		}
+
+		// Exchange authorization code for tokens
+		tok, err := oauthConfig.Exchange(ctx, req.Code)
+		if err != nil {
+			log.Printf("[AUTH] Failed to exchange code: %v", err)
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Failed to exchange authorization code",
+			})
+		}
+		token = tok
+
+		// Get user info using the access token
+		userInfoURL := "https://www.googleapis.com/oauth2/v3/userinfo"
+		httpReq, err := http.NewRequest("GET", userInfoURL, nil)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to create request",
+			})
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+token.AccessToken)
+
+		resp, err := http.DefaultClient.Do(httpReq)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Failed to get user info",
+			})
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid token",
+			})
+		}
+
+		var userInfo map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Failed to parse user info",
+			})
+		}
+
+		googleID, _ = userInfo["sub"].(string)
+		email, _ = userInfo["email"].(string)
+		name, _ = userInfo["name"].(string)
+		picture, _ = userInfo["picture"].(string)
+
+		log.Printf("[AUTH] Successfully exchanged code for tokens. Has refresh token: %v", token.RefreshToken != "")
+
+	} else if req.AccessToken != "" {
+		// Direct Token Flow (legacy support)
+		log.Printf("[AUTH] Using direct access token flow (no refresh token)")
+		
+		tokenExpiry := time.Now().Add(1 * time.Hour)
+		if req.ExpiresIn > 0 {
+			tokenExpiry = time.Now().Add(time.Duration(req.ExpiresIn) * time.Second)
+		}
+
+		token = &oauth2.Token{
+			AccessToken:  req.AccessToken,
+			RefreshToken: req.RefreshToken,
+			Expiry:       tokenExpiry,
+		}
+
+		// Validate access token by calling Google's userinfo endpoint
+		userInfoURL := "https://www.googleapis.com/oauth2/v3/userinfo"
+		httpReq, err := http.NewRequest("GET", userInfoURL, nil)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to create request",
+			})
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+req.AccessToken)
+
+		resp, err := http.DefaultClient.Do(httpReq)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Failed to validate token",
+			})
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid Google token",
+			})
+		}
+
+		var userInfo map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Failed to parse user info",
+			})
+		}
+
+		googleID, _ = userInfo["sub"].(string)
+		email, _ = userInfo["email"].(string)
+		name, _ = userInfo["name"].(string)
+		picture, _ = userInfo["picture"].(string)
+	} else {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Access token is required",
+			"error": "Either code or access_token is required",
 		})
 	}
-
-	// Validate access token by calling Google's userinfo endpoint
-	userInfoURL := "https://www.googleapis.com/oauth2/v3/userinfo"
-	httpReq, err := http.NewRequest("GET", userInfoURL, nil)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to create request",
-		})
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+req.AccessToken)
-
-	resp, err := http.DefaultClient.Do(httpReq)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Failed to validate token",
-		})
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid Google token",
-		})
-	}
-
-	var userInfo map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Failed to parse user info",
-		})
-	}
-
-	googleID, _ := userInfo["sub"].(string)
-	email, _ := userInfo["email"].(string)
-	name, _ := userInfo["name"].(string)
-	picture, _ := userInfo["picture"].(string)
 
 	if googleID == "" || email == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid user information",
 		})
-	}
-
-	// Use the access token directly from the frontend
-	tokenExpiry := time.Now().Add(1 * time.Hour)
-	if req.ExpiresIn > 0 {
-		tokenExpiry = time.Now().Add(time.Duration(req.ExpiresIn) * time.Second)
-	}
-
-	token := &oauth2.Token{
-		AccessToken:  req.AccessToken,
-		RefreshToken: req.RefreshToken,
-		Expiry:       tokenExpiry,
 	}
 
 	defaultSettings := models.UserSettings{

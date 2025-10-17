@@ -88,4 +88,6 @@ type LoginRequest struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token,omitempty"`
 	ExpiresIn    int64  `json:"expires_in,omitempty"`
+	// For authorization code flow
+	Code string `json:"code,omitempty"`
 }
