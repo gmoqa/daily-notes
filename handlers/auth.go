@@ -180,6 +180,26 @@ func Login(c *fiber.Ctx) error {
 		}
 	}
 
+	// Save/update user in database BEFORE creating session (due to foreign key constraint)
+	user := &models.User{
+		ID:          googleID,
+		GoogleID:    googleID,
+		Email:       email,
+		Name:        name,
+		Picture:     picture,
+		Settings:    userSettings,
+		CreatedAt:   time.Now(),
+		LastLoginAt: time.Now(),
+	}
+
+	if err := repo.UpsertUser(user); err != nil {
+		log.Printf("Failed to save user to database: %v", err)
+		return &fiber.Error{
+			Code:    fiber.StatusInternalServerError,
+			Message: "Failed to save user",
+		}
+	}
+
 	sess, err := session.Create(
 		googleID,
 		email,
@@ -221,22 +241,6 @@ func Login(c *fiber.Ctx) error {
 				log.Printf("Failed to check first login status: %v", err)
 			}
 		}
-	}
-
-	// Save/update user in database
-	user := &models.User{
-		ID:          googleID,
-		GoogleID:    googleID,
-		Email:       email,
-		Name:        name,
-		Picture:     picture,
-		Settings:    userSettings,
-		CreatedAt:   time.Now(),
-		LastLoginAt: time.Now(),
-	}
-
-	if err := repo.UpsertUser(user); err != nil {
-		log.Printf("Failed to save user to database: %v", err)
 	}
 
 	// Check if this is first login (no data in local DB)
