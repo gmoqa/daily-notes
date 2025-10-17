@@ -33,9 +33,32 @@ templ Editor() {
 						<div id="date-picker-display" style="position: absolute; top: 50%; left: 12px; transform: translateY(-50%); pointer-events: none; color: var(--bulma-input-color); font-size: 1rem;"></div>
 					</div>
 				</div>
-				<div class="editor-wrapper">
+				<div class="editor-wrapper" style="position: relative;">
 					<label for="markdown-editor-container" class="sr-only">Note content</label>
 					<div id="markdown-editor-container" aria-label="Markdown note editor" aria-describedby="save-indicator"></div>
+					<!-- Delete Note Button -->
+					<button
+						id="editor-delete-note-btn"
+						class="button is-small"
+						title="Delete this note"
+						style="
+							position: absolute;
+							bottom: 1.5rem;
+							right: 1.5rem;
+							opacity: 0.3;
+							transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+							background: transparent;
+							border: 1px solid var(--bulma-border);
+							color: var(--bulma-text-light);
+							display: none;
+						"
+						onmouseover="this.style.opacity='1'; this.style.transform='scale(1.05)'; this.style.color='var(--bulma-danger)';"
+						onmouseout="this.style.opacity='0.3'; this.style.transform='scale(1)'; this.style.color='var(--bulma-text-light)';"
+					>
+						<span class="icon is-small">
+							<span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+						</span>
+					</button>
 				</div>
 				<div class="save-indicator px-5" id="save-indicator"></div>
 			</div>

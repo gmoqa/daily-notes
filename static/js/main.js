@@ -422,6 +422,24 @@ class Application {
 
         window.closeOnboardingModal = () => ui.closeOnboardingModal();
 
+        window.closeDeleteNoteModal = () => ui.closeDeleteNoteModal();
+
+        window.confirmDeleteNote = async () => {
+            const modal = document.getElementById('delete-note-modal');
+            if (!modal) return;
+
+            const context = modal.dataset.context;
+            const dateStr = modal.dataset.date;
+
+            if (context && dateStr) {
+                // Close modal first
+                ui.closeDeleteNoteModal();
+
+                // Delete note immediately (notes module will handle UI updates)
+                await notes.deleteNote(context, dateStr);
+            }
+        };
+
         window.updateContextFromSettings = async (contextId) => {
             const nameInput = document.querySelector(`input[data-context-id="${contextId}"][data-field="name"]`);
             const colorInput = document.querySelector(`input[type="hidden"][data-context-id="${contextId}"][data-field="color"]`);

@@ -128,8 +128,12 @@ class APIClient {
         );
     }
 
-    async deleteNote(id) {
-        return await this.request(`/api/notes/${id}`, {
+    async deleteNote(context, date) {
+        // Encode context and date to handle special characters
+        const encodedContext = encodeURIComponent(context);
+        const encodedDate = encodeURIComponent(date);
+
+        return await this.request(`/api/notes/${encodedContext}/${encodedDate}`, {
             method: 'DELETE'
         });
     }

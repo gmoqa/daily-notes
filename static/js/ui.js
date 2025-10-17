@@ -94,6 +94,48 @@ class UIManager {
     }
 
     setupEventListeners() {
+        // Editor delete button
+        const editorDeleteBtn = document.getElementById('editor-delete-note-btn');
+        if (editorDeleteBtn) {
+            editorDeleteBtn.addEventListener('click', () => {
+                const context = state.get('selectedContext');
+                const dateStr = state.get('selectedDate');
+
+                if (context && dateStr) {
+                    // Get formatted date for display
+                    const settings = state.get('userSettings');
+                    const timezone = settings.timezone || 'UTC';
+                    const dateFormat = settings.dateFormat || 'DD-MM-YY';
+
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    const dateObj = new Date(year, month - 1, day);
+
+                    // Get the day name
+                    const dayName = dateObj.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        timeZone: timezone
+                    });
+
+                    // Format date
+                    const yy = String(year).substring(2);
+                    const mm = String(month).padStart(2, '0');
+                    const dd = String(day).padStart(2, '0');
+
+                    let formattedDateStr;
+                    if (dateFormat === 'MM-DD-YY') {
+                        formattedDateStr = `${mm}-${dd}-${yy}`;
+                    } else {
+                        formattedDateStr = `${dd}-${mm}-${yy}`;
+                    }
+
+                    const formattedDate = `${dayName}, ${formattedDateStr}`;
+
+                    // Show modal
+                    this.showDeleteNoteModal(context, dateStr, formattedDate);
+                }
+            });
+        }
+
         // Context selection (desktop)
         // Just update state - the CONTEXT_CHANGED event handler will do the rest
         this.elements.contextSelect?.addEventListener('change', (e) => {
@@ -183,6 +225,13 @@ class UIManager {
 
             // Escape: Close modals
             if (e.key === 'Escape') {
+                // Check if delete modal is open (highest priority)
+                const deleteModal = document.getElementById('delete-note-modal');
+                if (deleteModal?.classList.contains('is-active')) {
+                    this.closeDeleteNoteModal();
+                    return;
+                }
+
                 this.closeAllModals();
                 return;
             }
@@ -266,6 +315,7 @@ class UIManager {
             this.renderNotesList(); // Update active state
             calendar.render();
             this.updateBreadcrumb();
+            this.updateEditorDeleteButton(); // Update delete button visibility
         });
 
         // Update date picker display when date format changes
@@ -482,6 +532,24 @@ class UIManager {
                 markdownEditor.setContent('');
             }
         });
+
+        // Show/hide delete button based on context
+        this.updateEditorDeleteButton();
+    }
+
+    updateEditorDeleteButton() {
+        const editorDeleteBtn = document.getElementById('editor-delete-note-btn');
+        if (!editorDeleteBtn) return;
+
+        const context = state.get('selectedContext');
+        const selectedDate = state.get('selectedDate');
+
+        // Show button only if we have both context and selected date
+        if (context && selectedDate) {
+            editorDeleteBtn.style.display = 'flex';
+        } else {
+            editorDeleteBtn.style.display = 'none';
+        }
     }
 
     updateSaveIndicator(status) {
@@ -732,10 +800,36 @@ class UIManager {
         localStorage.setItem('onboarding_completed', 'true');
     }
 
+    showDeleteNoteModal(context, date, formattedDate) {
+        const modal = document.getElementById('delete-note-modal');
+        const message = document.getElementById('delete-note-message');
+
+        if (modal && message) {
+            // Store the note info for later use
+            modal.dataset.context = context;
+            modal.dataset.date = date;
+
+            // Update message with formatted date
+            message.textContent = `Are you sure you want to delete the note for ${formattedDate}?`;
+
+            modal.classList.add('is-active');
+        }
+    }
+
+    closeDeleteNoteModal() {
+        const modal = document.getElementById('delete-note-modal');
+        if (modal) {
+            modal.classList.remove('is-active');
+            delete modal.dataset.context;
+            delete modal.dataset.date;
+        }
+    }
+
     closeAllModals() {
         this.closeContextModal();
         this.closeSettingsModal();
         this.closeOnboardingModal();
+        this.closeDeleteNoteModal();
     }
 
     // Clock

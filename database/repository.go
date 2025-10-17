@@ -329,3 +329,11 @@ func (r *Repository) GetAllNotesByUser(userID string) ([]models.Note, error) {
 
 	return notes, rows.Err()
 }
+
+func (r *Repository) DeleteNote(userID, context, date string) error {
+	_, err := r.db.Exec(`
+		DELETE FROM notes
+		WHERE user_id = ? AND context = ? AND date = ?
+	`, userID, context, date)
+	return err
+}

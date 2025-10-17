@@ -205,6 +205,28 @@ export class LocalCache {
         });
     }
 
+    async deleteNote(context, date) {
+        if (!this.db) return;
+
+        const id = `${context}-${date}`;
+
+        // Remove from pending writes if it's there
+        this.pendingWrites.delete(id);
+
+        const tx = this.db.transaction(['notes'], 'readwrite');
+        const store = tx.objectStore('notes');
+
+        store.delete(id);
+
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = () => {
+                console.log(`[Cache] Deleted note: ${id}`);
+                resolve();
+            };
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
     async clear() {
         if (!this.db) return;
 

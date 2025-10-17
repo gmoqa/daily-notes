@@ -305,6 +305,58 @@ class NotesManager {
     getCurrentNoteContent() {
         return this.currentNoteContent;
     }
+
+    async deleteNote(context, date) {
+        if (!context || !date) return;
+
+        console.log(`[Notes] Deleting note - context: ${context}, date: ${date}`);
+
+        // 1. Remove from local cache immediately (optimistic)
+        await cache.deleteNote(context, date);
+
+        // 2. Remove from the notes list in state
+        const notes = state.get('notes');
+        const updatedNotes = notes.filter(note => !(note.date === date && note.context === context));
+
+        const notesWithDates = state.get('notesWithDates');
+        const updatedNotesWithDates = notesWithDates.filter(d => d !== date);
+
+        state.update({
+            notes: updatedNotes,
+            notesWithDates: updatedNotesWithDates
+        });
+
+        // 3. If the deleted note was currently selected, clear the editor and select another note
+        const selectedDate = state.get('selectedDate');
+        if (selectedDate === date) {
+            // Clear current note content
+            this.currentNoteContent = '';
+
+            // Select the most recent note or today
+            if (updatedNotes.length > 0) {
+                // Select the first note (most recent)
+                const nextNote = updatedNotes[0];
+                await this.selectDate(nextNote.date);
+            } else {
+                // No notes left, select today and clear editor
+                this.setTodayDate();
+                events.emit(EVENT.NOTE_LOADED, {
+                    content: '',
+                    fromCache: false,
+                    isBlank: true
+                });
+            }
+        }
+
+        // 4. Queue for background sync with Drive
+        events.emit('sync-add', {
+            type: 'delete-note',
+            data: { context, date },
+            timestamp: new Date().toISOString()
+        });
+
+        console.log('[Notes] Note deleted locally, queued for sync');
+    }
 }
 
 export const notes = new NotesManager();
