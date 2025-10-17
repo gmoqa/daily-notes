@@ -522,6 +522,7 @@ class UIManager {
     updateEditorState() {
         // Editor state is now managed by the markdown editor module
         const context = state.get('selectedContext');
+        const contexts = state.get('contexts') || [];
 
         // Import the markdown editor dynamically to avoid circular dependencies
         import('./markdown-editor.js').then(({ markdownEditor }) => {
@@ -530,6 +531,11 @@ class UIManager {
             } else {
                 markdownEditor.setDisabled(true);
                 markdownEditor.setContent('');
+
+                // If there are no contexts at all, show a message to create the first one
+                if (contexts.length === 0) {
+                    markdownEditor.setPlaceholderMessage('Click "+ New Context" to create your first context and start writing notes');
+                }
             }
         });
 
@@ -647,14 +653,13 @@ class UIManager {
 
         // Check if this is first login based on backend response
         const isFirstLogin = state.get('isFirstLogin');
-        const hasSeenOnboarding = localStorage.getItem('onboarding_completed');
         const isDevelopment = window.__ENV__ === 'development';
 
-        // Show onboarding if:
-        // - In development mode (for testing), OR
-        // - It's the user's first login (verified by Google Drive), OR
-        // - They haven't seen it yet (fallback for existing users)
-        if (isDevelopment || isFirstLogin || !hasSeenOnboarding) {
+        // Show onboarding only if it's the user's first login
+        // (verified by Google Drive - no dailynotes.dev folder/config exists)
+        // In production, ONLY show when isFirstLogin is true
+        // In development, always show for testing purposes
+        if (isDevelopment || isFirstLogin) {
             setTimeout(() => {
                 this.elements.onboardingModal?.classList.add('is-active');
             }, 500);
@@ -804,7 +809,7 @@ class UIManager {
 
     closeOnboardingModal() {
         this.elements.onboardingModal?.classList.remove('is-active');
-        localStorage.setItem('onboarding_completed', 'true');
+        // No need to store in localStorage anymore since we use backend isFirstLogin flag
     }
 
     showDeleteNoteModal(context, date, formattedDate) {

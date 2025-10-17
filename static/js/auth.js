@@ -54,7 +54,7 @@ class AuthManager {
                         // Use initCodeClient to get authorization code (which provides refresh token)
                         this.codeClient = google.accounts.oauth2.initCodeClient({
                             client_id: clientId,
-                            scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
+                            scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
                             ux_mode: 'popup',
                             callback: (response) => this.handleAuthCodeResponse(response)
                         });

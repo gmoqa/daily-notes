@@ -394,7 +394,7 @@ class MarkdownEditor {
         if (!disabled) {
             await this.ensureQuillLoaded();
         }
-        
+
         if (!this.editor) return;
         this.editor.enable(!disabled);
 
@@ -406,13 +406,23 @@ class MarkdownEditor {
 
         // Update placeholder based on disabled state
         const editorRoot = this.editor.root;
-        if (editorRoot) {
-            if (disabled) {
-                editorRoot.dataset.placeholder = 'Click "+ New Context" to create your first context and start writing notes...';
-            } else {
-                editorRoot.dataset.placeholder = 'Start writing your notes...';
-            }
+        if (editorRoot && disabled) {
+            editorRoot.dataset.placeholder = 'Select a context to start writing...';
+        } else if (editorRoot) {
+            editorRoot.dataset.placeholder = 'Start writing your notes...';
         }
+    }
+
+    setPlaceholderMessage(message) {
+        // Ensure Quill is loaded first
+        this.ensureQuillLoaded().then(() => {
+            if (!this.editor) return;
+
+            const editorRoot = this.editor.root;
+            if (editorRoot) {
+                editorRoot.dataset.placeholder = message;
+            }
+        });
     }
 
     focus() {
