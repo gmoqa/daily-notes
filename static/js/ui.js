@@ -525,16 +525,22 @@ class UIManager {
         const contexts = state.get('contexts') || [];
 
         // Import the markdown editor dynamically to avoid circular dependencies
-        import('./markdown-editor.js').then(({ markdownEditor }) => {
+        import('./markdown-editor.js').then(async ({ markdownEditor }) => {
             if (context) {
                 markdownEditor.setDisabled(false);
             } else {
+                // First ensure Quill is loaded before setting placeholder
+                await markdownEditor.ensureQuillLoaded();
+
                 markdownEditor.setDisabled(true);
                 markdownEditor.setContent('');
 
                 // If there are no contexts at all, show a message to create the first one
                 if (contexts.length === 0) {
-                    markdownEditor.setPlaceholderMessage('Click "New Context" to create your first context and start writing notes');
+                    // Wait a bit to ensure setDisabled has applied
+                    setTimeout(() => {
+                        markdownEditor.setPlaceholderMessage('Click "New Context" to create your first context and start writing notes');
+                    }, 100);
                 }
             }
         });
