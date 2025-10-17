@@ -46,7 +46,6 @@ func Login(c *fiber.Ctx) error {
 			RedirectURL:  config.AppConfig.GoogleRedirectURL,
 			Scopes: []string{
 				"https://www.googleapis.com/auth/drive.file",
-				"https://www.googleapis.com/auth/userinfo.profile",
 				"https://www.googleapis.com/auth/userinfo.email",
 			},
 			Endpoint: google.Endpoint,
