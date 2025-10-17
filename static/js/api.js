@@ -77,6 +77,15 @@ class APIClient {
         });
     }
 
+    async loginWithCode(code) {
+        return await this.request('/api/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({
+                code: code
+            })
+        });
+    }
+
     async logout() {
         return await this.request('/api/auth/logout', {
             method: 'POST'

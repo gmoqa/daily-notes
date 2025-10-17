@@ -51,12 +51,14 @@ class AuthManager {
             const checkGoogleLoaded = () => {
                 if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
                     try {
-                        this.tokenClient = google.accounts.oauth2.initTokenClient({
+                        // Use initCodeClient instead of initTokenClient to get refresh tokens
+                        this.tokenClient = google.accounts.oauth2.initCodeClient({
                             client_id: clientId,
-                            scope: 'https://www.googleapis.com/auth/drive.file openid profile email',
-                            callback: (tokenResponse) => this.handleGoogleLogin(tokenResponse)
+                            scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
+                            ux_mode: 'popup',
+                            callback: (codeResponse) => this.handleGoogleLogin(codeResponse)
                         });
-                        console.log('[AUTH] Google client initialized successfully');
+                        console.log('[AUTH] Google code client initialized successfully (with refresh token support)');
                         resolve();
                     } catch (error) {
                         console.error('[AUTH] Failed to initialize Google client:', error);
@@ -82,20 +84,20 @@ class AuthManager {
         return this.initializationPromise;
     }
 
-    async handleGoogleLogin(tokenResponse) {
+    async handleGoogleLogin(codeResponse) {
         const loader = document.getElementById('landing-loader');
 
-        if (tokenResponse.error) {
+        if (codeResponse.error) {
             if (loader) loader.classList.remove('visible');
-            events.emit(EVENT.SHOW_ERROR, 'OAuth failed: ' + tokenResponse.error);
+            events.emit(EVENT.SHOW_ERROR, 'OAuth failed: ' + codeResponse.error);
             return;
         }
 
         try {
-            const data = await api.login(
-                tokenResponse.access_token,
-                tokenResponse.expires_in || 3600
-            );
+            console.log('[AUTH] Received authorization code, exchanging for tokens...');
+            
+            // Send authorization code to backend
+            const data = await api.loginWithCode(codeResponse.code);
 
             if (data.success) {
                 console.log('[AUTH] Login successful, updating state');
