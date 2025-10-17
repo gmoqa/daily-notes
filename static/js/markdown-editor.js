@@ -142,11 +142,11 @@ class MarkdownEditor {
                 toolbar.style.display = showMarkdownEditor ? '' : 'none';
             }
 
-            // Also set editor enabled state
+            // Editor enabled state should be based on context selection only
+            // Toolbar visibility is separate from editor interactivity
             if (this.editor) {
                 const context = state.get('selectedContext');
-                const shouldBeEnabled = showMarkdownEditor && context;
-                this.editor.enable(shouldBeEnabled);
+                this.editor.enable(context ? true : false);
             }
         });
     }
@@ -241,15 +241,27 @@ class MarkdownEditor {
             if (!content) {
                 this.editor.setText('');
                 this.currentNoteContent = '';
-                return;
+            } else {
+                // Convert markdown to Quill Delta
+                const delta = this.markdownToDelta(content);
+                this.editor.setContents(delta);
+
+                // Track the current content for comparison
+                this.currentNoteContent = content;
             }
 
-            // Convert markdown to Quill Delta
-            const delta = this.markdownToDelta(content);
-            this.editor.setContents(delta);
-
-            // Track the current content for comparison
-            this.currentNoteContent = content;
+            // Ensure editor is enabled after setting content (if we have a context)
+            import('./state.js').then(({ state }) => {
+                const context = state.get('selectedContext');
+                if (context && this.editor) {
+                    // Small delay to ensure Quill has processed the content
+                    setTimeout(() => {
+                        if (this.editor) {
+                            this.editor.enable(true);
+                        }
+                    }, 0);
+                }
+            });
         } finally {
             this.isUpdating = false;
         }
