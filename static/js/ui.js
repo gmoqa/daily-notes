@@ -658,20 +658,19 @@ class UIManager {
         this.updateNewContextButtonVisibility();
 
         // Check if user has no contexts (new user or deleted all contexts)
+        // We use hasNoContexts from the backend response, NOT from local state
+        // because local state might not be loaded yet
         const hasNoContexts = state.get('hasNoContexts');
-        const contexts = state.get('contexts') || [];
         const isDevelopment = window.__ENV__ === 'development';
 
-        console.log('[UI] showApp - hasNoContexts:', hasNoContexts, 'contexts.length:', contexts.length, 'isDevelopment:', isDevelopment);
+        console.log('[UI] showApp - hasNoContexts:', hasNoContexts, 'isDevelopment:', isDevelopment);
 
         // Show onboarding modal when user has no contexts
         // This happens when:
         // - New user (never created a context)
         // - User deleted all their contexts
-        // In development, always show for testing purposes
-        const shouldShowWelcome = hasNoContexts || contexts.length === 0;
-
-        if (isDevelopment || shouldShowWelcome) {
+        // We ONLY check hasNoContexts from backend, not local contexts state
+        if (isDevelopment || hasNoContexts) {
             console.log('[UI] Showing onboarding modal');
             setTimeout(() => {
                 this.elements.onboardingModal?.classList.add('is-active');
