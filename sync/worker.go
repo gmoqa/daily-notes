@@ -6,6 +6,7 @@ import (
 	"daily-notes/drive"
 	"daily-notes/session"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -105,6 +106,8 @@ func (w *Worker) syncUserNotes(userID string, notes []database.NoteWithMeta) {
 	token, err := w.getUserToken(userID)
 	if err != nil {
 		log.Printf("[Sync Worker] Failed to get token for user %s: %v", userID, err)
+		// Mark all notes as not pending since we can't sync without a token
+		w.markNotesAsNotPending(notes)
 		return
 	}
 
@@ -112,6 +115,8 @@ func (w *Worker) syncUserNotes(userID string, notes []database.NoteWithMeta) {
 	driveService, err := drive.NewService(context.Background(), token, userID)
 	if err != nil {
 		log.Printf("[Sync Worker] Failed to create Drive service for user %s: %v", userID, err)
+		// Mark all notes as not pending since we can't sync without Drive service
+		w.markNotesAsNotPending(notes)
 		return
 	}
 
@@ -131,8 +136,16 @@ func (w *Worker) syncUserNotes(userID string, notes []database.NoteWithMeta) {
 
 	// Process deletions first (higher priority)
 	syncedCount := 0
+	tokenExpired := false
+	
 	for _, note := range deleteOps {
 		if err := w.syncNote(driveService, &note); err != nil {
+			// Check if it's a token expiration error
+			if w.isTokenExpiredError(err) {
+				log.Printf("[Sync Worker] Token expired for user %s, stopping sync", userID)
+				tokenExpired = true
+				break
+			}
 			log.Printf("[Sync Worker] Failed to delete note %s: %v", note.ID, err)
 			continue
 		}
@@ -140,13 +153,28 @@ func (w *Worker) syncUserNotes(userID string, notes []database.NoteWithMeta) {
 		syncedCount++
 	}
 
-	// Then process regular operations
-	for _, note := range regularOps {
-		if err := w.syncNote(driveService, &note); err != nil {
-			log.Printf("[Sync Worker] Failed to sync note %s: %v", note.ID, err)
-			continue
+	// Then process regular operations (only if token is still valid)
+	if !tokenExpired {
+		for _, note := range regularOps {
+			if err := w.syncNote(driveService, &note); err != nil {
+				// Check if it's a token expiration error
+				if w.isTokenExpiredError(err) {
+					log.Printf("[Sync Worker] Token expired for user %s, stopping sync", userID)
+					tokenExpired = true
+					break
+				}
+				log.Printf("[Sync Worker] Failed to sync note %s: %v", note.ID, err)
+				continue
+			}
+			syncedCount++
 		}
-		syncedCount++
+	}
+
+	// If token expired, mark all remaining notes as not pending
+	if tokenExpired {
+		log.Printf("[Sync Worker] Marking %d notes as not pending due to expired token", len(notes))
+		w.markNotesAsNotPending(notes)
+		return
 	}
 
 	if syncedCount > 0 {
@@ -243,4 +271,25 @@ func (w *Worker) ImportFromDrive(userID string, token *oauth2.Token) error {
 
 	log.Printf("[Sync Worker] Imported %d contexts and %d notes from Drive", len(config.Contexts), totalNotes)
 	return nil
+}
+
+// isTokenExpiredError checks if an error is related to token expiration
+func (w *Worker) isTokenExpiredError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "token expired") ||
+	       strings.Contains(errMsg, "Token has been expired") ||
+	       strings.Contains(errMsg, "invalid_grant") ||
+	       strings.Contains(errMsg, "401")
+}
+
+// markNotesAsNotPending marks a batch of notes as not pending to avoid infinite retry loops
+func (w *Worker) markNotesAsNotPending(notes []database.NoteWithMeta) {
+	for _, note := range notes {
+		if err := w.repo.MarkNoteAsNotPending(note.ID); err != nil {
+			log.Printf("[Sync Worker] Failed to mark note %s as not pending: %v", note.ID, err)
+		}
+	}
 }

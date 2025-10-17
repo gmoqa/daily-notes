@@ -360,3 +360,11 @@ func (r *Repository) HardDeleteNote(userID, context, date string) error {
 	`, userID, context, date)
 	return err
 }
+
+// MarkNoteAsNotPending marks a note as not pending sync to avoid infinite retry loops
+func (r *Repository) MarkNoteAsNotPending(noteID string) error {
+	_, err := r.db.Exec(`
+		UPDATE notes SET sync_pending = 0 WHERE id = ?
+	`, noteID)
+	return err
+}

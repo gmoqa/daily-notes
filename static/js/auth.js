@@ -9,7 +9,7 @@ import { events, EVENT } from './events.js';
 
 class AuthManager {
     constructor() {
-        this.tokenClient = null;
+        this.codeClient = null;
         this.initializationPromise = null;
     }
 
@@ -41,7 +41,7 @@ class AuthManager {
         }
 
         // Return immediately if already initialized
-        if (this.tokenClient) {
+        if (this.codeClient) {
             return Promise.resolve();
         }
 
@@ -51,14 +51,14 @@ class AuthManager {
             const checkGoogleLoaded = () => {
                 if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
                     try {
-                        // Use initCodeClient instead of initTokenClient to get refresh tokens
-                        this.tokenClient = google.accounts.oauth2.initCodeClient({
+                        // Use initCodeClient to get authorization code (which provides refresh token)
+                        this.codeClient = google.accounts.oauth2.initCodeClient({
                             client_id: clientId,
                             scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
                             ux_mode: 'popup',
-                            callback: (codeResponse) => this.handleGoogleLogin(codeResponse)
+                            callback: (response) => this.handleAuthCodeResponse(response)
                         });
-                        console.log('[AUTH] Google code client initialized successfully (with refresh token support)');
+                        console.log('[AUTH] Google code client initialized successfully');
                         resolve();
                     } catch (error) {
                         console.error('[AUTH] Failed to initialize Google client:', error);
@@ -75,7 +75,7 @@ class AuthManager {
 
             // Set a timeout to prevent infinite waiting
             setTimeout(() => {
-                if (!this.tokenClient) {
+                if (!this.codeClient) {
                     reject(new Error('Google API failed to load within timeout'));
                 }
             }, 10000); // 10 second timeout
@@ -84,20 +84,18 @@ class AuthManager {
         return this.initializationPromise;
     }
 
-    async handleGoogleLogin(codeResponse) {
+    async handleAuthCodeResponse(response) {
         const loader = document.getElementById('landing-loader');
 
-        if (codeResponse.error) {
+        if (response.error) {
             if (loader) loader.classList.remove('visible');
-            events.emit(EVENT.SHOW_ERROR, 'OAuth failed: ' + codeResponse.error);
+            events.emit(EVENT.SHOW_ERROR, 'OAuth failed: ' + response.error);
             return;
         }
 
         try {
-            console.log('[AUTH] Received authorization code, exchanging for tokens...');
-            
-            // Send authorization code to backend
-            const data = await api.loginWithCode(codeResponse.code);
+            // Send authorization code to backend to exchange for tokens
+            const data = await api.loginWithCode(response.code);
 
             if (data.success) {
                 console.log('[AUTH] Login successful, updating state');
@@ -137,11 +135,12 @@ class AuthManager {
             // Wait for initialization to complete if not already done
             await this.initializationPromise;
 
-            if (!this.tokenClient) {
+            if (!this.codeClient) {
                 throw new Error('Google client not initialized');
             }
 
-            this.tokenClient.requestAccessToken({ prompt: '' });
+            // Request authorization code (will trigger popup)
+            this.codeClient.requestCode();
         } catch (error) {
             console.error('[AUTH] Sign in failed:', error);
             if (loader) loader.classList.remove('visible');
