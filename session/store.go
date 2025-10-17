@@ -9,25 +9,23 @@ import (
 	"github.com/google/uuid"
 )
 
-var (
-	db *sql.DB
-)
-
-type SessionStore struct {
+// Store handles session persistence
+type Store struct {
 	db *sql.DB
 }
 
-// Initialize sets the database connection for the session store
-func Initialize(database *sql.DB) {
+// NewStore creates a new session store with the given database connection
+func NewStore(database *sql.DB) *Store {
 	if database == nil {
-		panic("session.Initialize called with nil database")
+		panic("session.NewStore called with nil database")
 	}
-	db = database
 	fmt.Println("[Session Store] Initialized with database connection")
+	return &Store{db: database}
 }
 
-func Create(userID, email, name, picture, accessToken, refreshToken string, tokenExpiry time.Time, settings models.UserSettings) (*models.Session, error) {
-	if db == nil {
+// Create creates a new session in the database
+func (s *Store) Create(userID, email, name, picture, accessToken, refreshToken string, tokenExpiry time.Time, settings models.UserSettings) (*models.Session, error) {
+	if s.db == nil {
 		return nil, sql.ErrConnDone
 	}
 
@@ -35,7 +33,7 @@ func Create(userID, email, name, picture, accessToken, refreshToken string, toke
 	now := time.Now()
 	expiresAt := now.Add(30 * 24 * time.Hour)
 
-	_, err := db.Exec(`
+	_, err := s.db.Exec(`
 		INSERT INTO sessions (
 			id, user_id, email, name, picture,
 			access_token, refresh_token, token_expiry,
@@ -78,11 +76,12 @@ func Create(userID, email, name, picture, accessToken, refreshToken string, toke
 	}, nil
 }
 
-func Get(sessionID string) (*models.Session, error) {
+// Get retrieves a session by its ID
+func (s *Store) Get(sessionID string) (*models.Session, error) {
 	var session models.Session
 	var settings models.UserSettings
 
-	err := db.QueryRow(`
+	err := s.db.QueryRow(`
 		SELECT id, user_id, email, name, picture,
 			access_token, refresh_token, token_expiry,
 			settings_theme, settings_week_start, settings_timezone,
@@ -113,11 +112,12 @@ func Get(sessionID string) (*models.Session, error) {
 	return &session, nil
 }
 
-func GetByUserID(userID string) *models.Session {
+// GetByUserID retrieves the most recent session for a user
+func (s *Store) GetByUserID(userID string) *models.Session {
 	var session models.Session
 	var settings models.UserSettings
 
-	err := db.QueryRow(`
+	err := s.db.QueryRow(`
 		SELECT id, user_id, email, name, picture,
 			access_token, refresh_token, token_expiry,
 			settings_theme, settings_week_start, settings_timezone,
@@ -147,10 +147,11 @@ func GetByUserID(userID string) *models.Session {
 	return &session
 }
 
-func Update(sessionID string, session *models.Session) error {
+// Update updates an existing session
+func (s *Store) Update(sessionID string, session *models.Session) error {
 	now := time.Now()
 
-	_, err := db.Exec(`
+	_, err := s.db.Exec(`
 		UPDATE sessions SET
 			email = ?,
 			name = ?,
@@ -182,8 +183,8 @@ func Update(sessionID string, session *models.Session) error {
 }
 
 // UpdateUserToken updates just the OAuth tokens for a specific user
-func UpdateUserToken(userID string, accessToken, refreshToken string, tokenExpiry time.Time) error {
-	_, err := db.Exec(`
+func (s *Store) UpdateUserToken(userID string, accessToken, refreshToken string, tokenExpiry time.Time) error {
+	_, err := s.db.Exec(`
 		UPDATE sessions SET
 			access_token = ?,
 			refresh_token = ?,
@@ -197,26 +198,29 @@ func UpdateUserToken(userID string, accessToken, refreshToken string, tokenExpir
 	return err
 }
 
-func Delete(sessionID string) error {
-	_, err := db.Exec("DELETE FROM sessions WHERE id = ?", sessionID)
+// Delete removes a session from the database
+func (s *Store) Delete(sessionID string) error {
+	_, err := s.db.Exec("DELETE FROM sessions WHERE id = ?", sessionID)
 	return err
 }
 
-func CleanupExpired() {
-	_, err := db.Exec("DELETE FROM sessions WHERE expires_at < ?", time.Now())
+// CleanupExpired removes all expired sessions from the database
+func (s *Store) CleanupExpired() {
+	_, err := s.db.Exec("DELETE FROM sessions WHERE expires_at < ?", time.Now())
 	if err != nil {
 		// Log error but don't crash
 		return
 	}
 }
 
-func StartCleanupRoutine() {
+// StartCleanupRoutine starts a background goroutine to cleanup expired sessions
+func (s *Store) StartCleanupRoutine() {
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 
 		for range ticker.C {
-			CleanupExpired()
+			s.CleanupExpired()
 		}
 	}()
 }

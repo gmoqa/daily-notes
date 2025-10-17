@@ -10,11 +10,12 @@ import (
 	"google.golang.org/api/idtoken"
 )
 
-func AuthRequired() fiber.Handler {
+// AuthRequired creates an authentication middleware that requires a valid session or Bearer token
+func AuthRequired(sessionStore *session.Store) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		sessionID := c.Cookies("session_id")
 		if sessionID != "" {
-			sess, err := session.Get(sessionID)
+			sess, err := sessionStore.Get(sessionID)
 			if err == nil && sess != nil {
 				c.Locals("userID", sess.UserID)
 				c.Locals("userEmail", sess.Email)

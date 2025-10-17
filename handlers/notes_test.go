@@ -1,12 +1,16 @@
 package handlers_test
 
 import (
+	"daily-notes/handlers"
 	"bytes"
 	"context"
+	"daily-notes/app"
 	"daily-notes/database"
-	"daily-notes/handlers"
 	"daily-notes/models"
+	"daily-notes/session"
+	"daily-notes/sync"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,8 +31,8 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// setupTestDB creates a temporary test database
-func setupTestDB(t *testing.T) (*database.Repository, func()) {
+// setupTestDB creates a temporary test database and returns app with all dependencies
+func setupTestDB(t *testing.T) (*app.App, func()) {
 	t.Helper()
 
 	// Create temporary directory for test database
@@ -38,11 +42,34 @@ func setupTestDB(t *testing.T) (*database.Repository, func()) {
 	dbPath := filepath.Join(tmpDir, "test.db")
 
 	// Initialize database
-	db, err := database.InitDB(dbPath)
+	db, err := database.New(dbPath)
 	require.NoError(t, err, "Failed to initialize test database")
 
+	// Run migrations
+	err = db.Migrate()
+	require.NoError(t, err, "Failed to run migrations")
+
 	repo := database.NewRepository(db)
-	handlers.SetRepository(repo)
+	sessionStore := session.NewStore(db.DB)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	// Create mock sync worker (nil for tests that don't need it)
+	// If needed, we can create a real worker or a mock implementation
+	var syncWorker *sync.Worker = nil
+
+	// Create app with all dependencies
+	application := app.New(repo, syncWorker, sessionStore, logger)
+
+	// Create test user in database (required for foreign key constraints)
+	testUser := &models.User{
+		ID:        "test-user-id",
+		GoogleID:  "test-google-id",
+		Email:     "test@example.com",
+		Name:      "Test User",
+		CreatedAt: time.Now(),
+	}
+	err = repo.UpsertUser(testUser)
+	require.NoError(t, err, "Failed to create test user")
 
 	// Return cleanup function
 	cleanup := func() {
@@ -50,7 +77,7 @@ func setupTestDB(t *testing.T) (*database.Repository, func()) {
 		os.RemoveAll(tmpDir)
 	}
 
-	return repo, cleanup
+	return application, cleanup
 }
 
 // setupTestApp creates a test Fiber app with middleware
@@ -77,6 +104,8 @@ func setupTestApp() *fiber.App {
 			Name:   "Test User",
 		}
 		c.Locals("session", testSession)
+		c.Locals("userID", "test-user-id")
+		c.Locals("userEmail", "test@example.com")
 		return c.Next()
 	})
 
@@ -84,11 +113,11 @@ func setupTestApp() *fiber.App {
 }
 
 func TestGetNote(t *testing.T) {
-	repo, cleanup := setupTestDB(t)
+	application, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	app := setupTestApp()
-	app.Get("/api/notes", handlers.GetNote)
+	fiberApp := setupTestApp()
+	fiberApp.Get("/api/notes", handlers.GetNote(application))
 
 	tests := []struct {
 		name           string
@@ -152,13 +181,13 @@ func TestGetNote(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup: Insert note if needed
 			if tt.setupNote != nil {
-				err := repo.UpsertNote(tt.setupNote, false)
+				err := application.Repo.UpsertNote(tt.setupNote, false)
 				require.NoError(t, err)
 			}
 
 			// Execute: Make request
 			req := httptest.NewRequest(http.MethodGet, "/api/notes?context="+tt.context+"&date="+tt.date, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := fiberApp.Test(req, -1)
 			require.NoError(t, err)
 
 			// Assert: Check status code
@@ -181,11 +210,11 @@ func TestGetNote(t *testing.T) {
 }
 
 func TestUpsertNote(t *testing.T) {
-	repo, cleanup := setupTestDB(t)
+	application, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	app := setupTestApp()
-	app.Post("/api/notes", handlers.UpsertNote)
+	fiberApp := setupTestApp()
+	fiberApp.Post("/api/notes", handlers.UpsertNote(application))
 
 	tests := []struct {
 		name           string
@@ -226,7 +255,7 @@ func TestUpsertNote(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			validateNote: func(t *testing.T, userID string) {
-				note, err := repo.GetNote(userID, "Work", "2025-10-16")
+				note, err := application.Repo.GetNote(userID, "Work", "2025-10-16")
 				require.NoError(t, err)
 				assert.NotNil(t, note)
 				assert.Equal(t, "New note content", note.Content)
@@ -241,7 +270,7 @@ func TestUpsertNote(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			validateNote: func(t *testing.T, userID string) {
-				note, err := repo.GetNote(userID, "Work", "2025-10-16")
+				note, err := application.Repo.GetNote(userID, "Work", "2025-10-16")
 				require.NoError(t, err)
 				assert.Equal(t, "Updated content", note.Content)
 			},
@@ -268,7 +297,7 @@ func TestUpsertNote(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/notes", bytes.NewReader(reqBody))
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := app.Test(req, -1)
+			resp, err := fiberApp.Test(req, -1)
 			require.NoError(t, err)
 
 			// Assert: Check status code
@@ -290,11 +319,11 @@ func TestUpsertNote(t *testing.T) {
 }
 
 func TestGetNotesByContext(t *testing.T) {
-	repo, cleanup := setupTestDB(t)
+	application, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	app := setupTestApp()
-	app.Get("/api/notes/list", handlers.GetNotesByContext)
+	fiberApp := setupTestApp()
+	fiberApp.Get("/api/notes/list", handlers.GetNotesByContext(application))
 
 	// Setup: Create test notes
 	testNotes := []*models.Note{
@@ -325,7 +354,7 @@ func TestGetNotesByContext(t *testing.T) {
 	}
 
 	for _, note := range testNotes {
-		err := repo.UpsertNote(note, false)
+		err := application.Repo.UpsertNote(note, false)
 		require.NoError(t, err)
 	}
 
@@ -388,7 +417,7 @@ func TestGetNotesByContext(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodGet, "/api/notes/list?"+query, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := fiberApp.Test(req, -1)
 			require.NoError(t, err)
 
 			// Assert: Check status code
@@ -399,8 +428,13 @@ func TestGetNotesByContext(t *testing.T) {
 				err = json.NewDecoder(resp.Body).Decode(&body)
 				require.NoError(t, err)
 
-				notes := body["notes"].([]interface{})
-				assert.Equal(t, tt.expectedCount, len(notes))
+				notesField := body["notes"]
+				if notesField == nil {
+					assert.Equal(t, 0, tt.expectedCount, "Expected notes to be nil/empty")
+				} else {
+					notes := notesField.([]interface{})
+					assert.Equal(t, tt.expectedCount, len(notes))
+				}
 			}
 		})
 	}
@@ -408,11 +442,11 @@ func TestGetNotesByContext(t *testing.T) {
 
 // TestConcurrentNoteUpdates tests race conditions when updating the same note
 func TestConcurrentNoteUpdates(t *testing.T) {
-	repo, cleanup := setupTestDB(t)
+	application, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	app := setupTestApp()
-	app.Post("/api/notes", handlers.UpsertNote)
+	fiberApp := setupTestApp()
+	fiberApp.Post("/api/notes", handlers.UpsertNote(application))
 
 	const numGoroutines = 10
 
@@ -433,7 +467,7 @@ func TestConcurrentNoteUpdates(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/notes", bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := app.Test(req, -1)
+			resp, err := fiberApp.Test(req, -1)
 			if err != nil {
 				errChan <- err
 				return
@@ -459,7 +493,7 @@ func TestConcurrentNoteUpdates(t *testing.T) {
 	}
 
 	// Assert: Note exists in database
-	note, err := repo.GetNote("test-user-id", "Work", "2025-10-16")
+	note, err := application.Repo.GetNote("test-user-id", "Work", "2025-10-16")
 	require.NoError(t, err)
 	assert.NotNil(t, note)
 }
@@ -471,14 +505,18 @@ func BenchmarkUpsertNote(b *testing.B) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "bench.db")
-	db, _ := database.InitDB(dbPath)
+	db, _ := database.New(dbPath)
+	db.Migrate()
 	defer db.Close()
 
 	repo := database.NewRepository(db)
-	handlers.SetRepository(repo)
+	sessionStore := session.NewStore(db.DB)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	app := setupTestApp()
-	app.Post("/api/notes", handlers.UpsertNote)
+	application := app.New(repo, nil, sessionStore, logger)
+
+	fiberApp := setupTestApp()
+	fiberApp.Post("/api/notes", handlers.UpsertNote(application))
 
 	reqBody := map[string]interface{}{
 		"context": "Work",
@@ -492,6 +530,6 @@ func BenchmarkUpsertNote(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		req := httptest.NewRequest(http.MethodPost, "/api/notes", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
-		app.Test(req, -1)
+		fiberApp.Test(req, -1)
 	}
 }

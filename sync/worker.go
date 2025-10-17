@@ -15,6 +15,7 @@ import (
 
 type Worker struct {
 	repo         *database.Repository
+	sessionStore *session.Store
 	interval     time.Duration
 	running      bool
 	mu           sync.Mutex
@@ -22,9 +23,10 @@ type Worker struct {
 	getUserToken func(userID string) (*oauth2.Token, error)
 }
 
-func NewWorker(repo *database.Repository, getUserToken func(userID string) (*oauth2.Token, error)) *Worker {
+func NewWorker(repo *database.Repository, sessionStore *session.Store, getUserToken func(userID string) (*oauth2.Token, error)) *Worker {
 	return &Worker{
 		repo:         repo,
+		sessionStore: sessionStore,
 		interval:     5 * time.Second, // Reduced from 30s to 5s for faster sync
 		getUserToken: getUserToken,
 		stopChan:     make(chan struct{}),
@@ -187,8 +189,10 @@ func (w *Worker) syncUserNotes(userID string, notes []database.NoteWithMeta) {
 		// Only update if the token actually changed
 		if currentToken.AccessToken != token.AccessToken || !currentToken.Expiry.Equal(token.Expiry) {
 			log.Printf("[Sync Worker] Token was refreshed for user %s, updating session", userID)
-			if err := session.UpdateUserToken(userID, currentToken.AccessToken, currentToken.RefreshToken, currentToken.Expiry); err != nil {
-				log.Printf("[Sync Worker] Failed to update token in session: %v", err)
+			if w.sessionStore != nil {
+				if err := w.sessionStore.UpdateUserToken(userID, currentToken.AccessToken, currentToken.RefreshToken, currentToken.Expiry); err != nil {
+					log.Printf("[Sync Worker] Failed to update token in session: %v", err)
+				}
 			}
 		}
 	}
@@ -263,8 +267,10 @@ func (w *Worker) ImportFromDrive(userID string, token *oauth2.Token) error {
 		// Only update if the token actually changed
 		if currentToken.AccessToken != token.AccessToken || !currentToken.Expiry.Equal(token.Expiry) {
 			log.Printf("[Sync Worker] Token was refreshed during import for user %s, updating session", userID)
-			if err := session.UpdateUserToken(userID, currentToken.AccessToken, currentToken.RefreshToken, currentToken.Expiry); err != nil {
-				log.Printf("[Sync Worker] Failed to update token in session: %v", err)
+			if w.sessionStore != nil {
+				if err := w.sessionStore.UpdateUserToken(userID, currentToken.AccessToken, currentToken.RefreshToken, currentToken.Expiry); err != nil {
+					log.Printf("[Sync Worker] Failed to update token in session: %v", err)
+				}
 			}
 		}
 	}

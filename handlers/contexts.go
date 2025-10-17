@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"daily-notes/app"
 	"daily-notes/middleware"
 	"daily-notes/models"
 	"regexp"
@@ -11,19 +12,24 @@ import (
 	"github.com/google/uuid"
 )
 
-func GetContexts(c *fiber.Ctx) error {
+// GetContexts retrieves all contexts for a user
+func GetContexts(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 
 	// Get from local database (instant)
-	contexts, err := repo.GetContexts(userID)
+	contexts, err := a.Repo.GetContexts(userID)
 	if err != nil {
 		return serverErrorWithDetails(c, "Failed to fetch contexts", err)
 	}
 
 	return success(c, fiber.Map{"contexts": contexts})
+	}
 }
 
-func CreateContext(c *fiber.Ctx) error {
+// CreateContext creates a new context for a user
+func CreateContext(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	var req models.CreateContextRequest
 	if err := c.BodyParser(&req); err != nil {
 		return badRequest(c, "Invalid request body")
@@ -65,7 +71,7 @@ func CreateContext(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 
 	// Check if context already exists
-	existing, err := repo.GetContextByName(userID, req.Name)
+	existing, err := a.Repo.GetContextByName(userID, req.Name)
 	if err != nil {
 		return serverErrorWithDetails(c, "Failed to check existing context", err)
 	}
@@ -82,15 +88,18 @@ func CreateContext(c *fiber.Ctx) error {
 		CreatedAt: time.Now(),
 	}
 
-	if err := repo.CreateContext(context); err != nil {
+	if err := a.Repo.CreateContext(context); err != nil {
 		return serverErrorWithDetails(c, "Failed to create context", err)
 	}
 
 	// Context will be synced to Drive by the background worker when notes are created
 	return created(c, fiber.Map{"context": context})
+	}
 }
 
-func UpdateContext(c *fiber.Ctx) error {
+// UpdateContext updates an existing context
+func UpdateContext(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	contextID := c.Params("id")
 	if contextID == "" {
 		return badRequest(c, "context ID is required")
@@ -135,7 +144,7 @@ func UpdateContext(c *fiber.Ctx) error {
 	}
 
 	// Get the old context to check if name is changing
-	oldContext, err := repo.GetContextByID(contextID)
+	oldContext, err := a.Repo.GetContextByID(contextID)
 	if err != nil {
 		return serverErrorWithDetails(c, "Failed to fetch context", err)
 	}
@@ -149,13 +158,13 @@ func UpdateContext(c *fiber.Ctx) error {
 	nameChanged := oldContext.Name != req.Name
 
 	// Update context in local database
-	if err := repo.UpdateContext(contextID, req.Name, req.Color); err != nil {
+	if err := a.Repo.UpdateContext(contextID, req.Name, req.Color); err != nil {
 		return serverErrorWithDetails(c, "Failed to update context", err)
 	}
 
 	// If name changed, update all notes with the new context name
 	if nameChanged {
-		if err := repo.UpdateNotesContextName(oldContext.Name, req.Name, userID); err != nil {
+		if err := a.Repo.UpdateNotesContextName(oldContext.Name, req.Name, userID); err != nil {
 			return serverErrorWithDetails(c, "Failed to update notes with new context name", err)
 		}
 
@@ -174,9 +183,12 @@ func UpdateContext(c *fiber.Ctx) error {
 	}
 
 	return success(c, fiber.Map{"message": "Context updated successfully"})
+	}
 }
 
-func DeleteContext(c *fiber.Ctx) error {
+// DeleteContext deletes a context and its notes
+func DeleteContext(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	contextID := c.Params("id")
 	if contextID == "" {
 		return badRequest(c, "context ID is required")
@@ -185,7 +197,7 @@ func DeleteContext(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 
 	// Get the context to retrieve its name
-	context, err := repo.GetContextByID(contextID)
+	context, err := a.Repo.GetContextByID(contextID)
 	if err != nil {
 		return serverErrorWithDetails(c, "Failed to fetch context", err)
 	}
@@ -195,21 +207,21 @@ func DeleteContext(c *fiber.Ctx) error {
 
 	// Get all notes for this context and mark them as deleted
 	// This will trigger the sync worker to delete them from Drive
-	notes, err := repo.GetNotesByContext(userID, context.Name, 1000, 0)
+	notes, err := a.Repo.GetNotesByContext(userID, context.Name, 1000, 0)
 	if err != nil {
 		return serverErrorWithDetails(c, "Failed to fetch notes", err)
 	}
 
 	// Mark all notes in this context as deleted (soft delete with sync pending)
 	for _, note := range notes {
-		if err := repo.DeleteNote(userID, context.Name, note.Date); err != nil {
+		if err := a.Repo.DeleteNote(userID, context.Name, note.Date); err != nil {
 			// Log but continue
 			c.Append("X-Warning", "Some notes failed to be marked for deletion")
 		}
 	}
 
 	// Delete from local database
-	if err := repo.DeleteContext(contextID); err != nil {
+	if err := a.Repo.DeleteContext(contextID); err != nil {
 		return serverErrorWithDetails(c, "Failed to delete context", err)
 	}
 
@@ -230,4 +242,5 @@ func DeleteContext(c *fiber.Ctx) error {
 	return success(c, fiber.Map{
 		"message": "Context deleted successfully. All notes have been moved to _DELETED folder in Google Drive.",
 	})
+	}
 }
