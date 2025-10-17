@@ -4,7 +4,6 @@ import (
 	"context"
 	"daily-notes/database"
 	"daily-notes/drive"
-	"daily-notes/models"
 	"log"
 	"sync"
 	"time"
@@ -24,7 +23,7 @@ type Worker struct {
 func NewWorker(repo *database.Repository, getUserToken func(userID string) (*oauth2.Token, error)) *Worker {
 	return &Worker{
 		repo:         repo,
-		interval:     30 * time.Second,
+		interval:     5 * time.Second, // Reduced from 30s to 5s for faster sync
 		getUserToken: getUserToken,
 		stopChan:     make(chan struct{}),
 	}
@@ -89,7 +88,7 @@ func (w *Worker) syncPendingNotes() {
 	log.Printf("[Sync Worker] Syncing %d pending notes", len(notes))
 
 	// Group notes by user
-	notesByUser := make(map[string][]models.Note)
+	notesByUser := make(map[string][]database.NoteWithMeta)
 	for _, note := range notes {
 		notesByUser[note.UserID] = append(notesByUser[note.UserID], note)
 	}
@@ -100,7 +99,7 @@ func (w *Worker) syncPendingNotes() {
 	}
 }
 
-func (w *Worker) syncUserNotes(userID string, notes []models.Note) {
+func (w *Worker) syncUserNotes(userID string, notes []database.NoteWithMeta) {
 	// Get user's Drive token
 	token, err := w.getUserToken(userID)
 	if err != nil {
@@ -115,9 +114,33 @@ func (w *Worker) syncUserNotes(userID string, notes []models.Note) {
 		return
 	}
 
-	// Sync each note
-	syncedCount := 0
+	// Separate delete operations and regular operations
+	var deleteOps []database.NoteWithMeta
+	var regularOps []database.NoteWithMeta
 	for _, note := range notes {
+		log.Printf("[Sync Worker] Processing note: context=%s, date=%s, deleted=%v", note.Context, note.Date, note.Deleted)
+		if note.Deleted {
+			deleteOps = append(deleteOps, note)
+		} else {
+			regularOps = append(regularOps, note)
+		}
+	}
+
+	log.Printf("[Sync Worker] Separated operations: %d deletes, %d regular", len(deleteOps), len(regularOps))
+
+	// Process deletions first (higher priority)
+	syncedCount := 0
+	for _, note := range deleteOps {
+		if err := w.syncNote(driveService, &note); err != nil {
+			log.Printf("[Sync Worker] Failed to delete note %s: %v", note.ID, err)
+			continue
+		}
+		log.Printf("[Sync Worker] Successfully deleted note from Drive: %s/%s", note.Context, note.Date)
+		syncedCount++
+	}
+
+	// Then process regular operations
+	for _, note := range regularOps {
 		if err := w.syncNote(driveService, &note); err != nil {
 			log.Printf("[Sync Worker] Failed to sync note %s: %v", note.ID, err)
 			continue
@@ -130,7 +153,16 @@ func (w *Worker) syncUserNotes(userID string, notes []models.Note) {
 	}
 }
 
-func (w *Worker) syncNote(driveService *drive.Service, note *models.Note) error {
+func (w *Worker) syncNote(driveService *drive.Service, note *database.NoteWithMeta) error {
+	if note.Deleted {
+		// Delete from Drive
+		if err := driveService.DeleteNote(note.Context, note.Date); err != nil {
+			return err
+		}
+		// Hard delete from database after successful Drive deletion
+		return w.repo.HardDeleteNote(note.UserID, note.Context, note.Date)
+	}
+
 	// Upload to Drive
 	syncedNote, err := driveService.UpsertNote(note.Context, note.Date, note.Content)
 	if err != nil {

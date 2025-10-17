@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -85,6 +86,7 @@ func (db *DB) Migrate() error {
 			drive_file_id TEXT,
 			synced_at DATETIME,
 			sync_pending INTEGER DEFAULT 1,
+			deleted INTEGER DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -115,6 +117,9 @@ func (db *DB) Migrate() error {
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 		)`,
 
+		// Add deleted column to notes table if it doesn't exist (migration)
+		`ALTER TABLE notes ADD COLUMN deleted INTEGER DEFAULT 0`,
+
 		// Indexes for performance
 		`CREATE INDEX IF NOT EXISTS idx_notes_user_context ON notes(user_id, context)`,
 		`CREATE INDEX IF NOT EXISTS idx_notes_user_date ON notes(user_id, date)`,
@@ -124,8 +129,13 @@ func (db *DB) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)`,
 	}
 
-	for _, query := range queries {
+	for i, query := range queries {
 		if _, err := db.Exec(query); err != nil {
+			// Ignore "duplicate column" error for ALTER TABLE (migration already applied)
+			if i == 4 && strings.Contains(err.Error(), "duplicate column name") {
+				// Migration already applied
+				continue
+			}
 			return fmt.Errorf("migration failed: %w", err)
 		}
 	}

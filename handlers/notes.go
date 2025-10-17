@@ -137,33 +137,12 @@ func DeleteNote(c *fiber.Ctx) error {
 
 	userID := middleware.GetUserID(c)
 
-	// Delete from local database
+	// Mark note as deleted (will be synced by background worker)
 	if err := repo.DeleteNote(userID, contextName, date); err != nil {
 		return serverErrorWithDetails(c, "Failed to delete note", err)
 	}
 
-	// Get Drive service for background sync
-	driveService, err := getDriveService(c)
-	if err != nil {
-		// If we can't get Drive service, note is deleted locally but not synced
-		// This is acceptable - user will need to manually delete from Drive
-		return success(c, fiber.Map{
-			"message": "Note deleted locally. Drive sync unavailable.",
-			"synced":  false,
-		})
-	}
-
-	// Delete from Drive in background
-	go func() {
-		if err := driveService.DeleteNote(contextName, date); err != nil {
-			// Log error but don't fail the request
-			// The note is already deleted locally
-			return
-		}
-	}()
-
 	return success(c, fiber.Map{
 		"message": "Note deleted successfully",
-		"synced":  true,
 	})
 }

@@ -191,7 +191,7 @@ func (r *Repository) GetNote(userID, context, date string) (*models.Note, error)
 	err := r.db.QueryRow(`
 		SELECT id, user_id, context, date, content, drive_file_id, created_at, updated_at
 		FROM notes
-		WHERE user_id = ? AND context = ? AND date = ?
+		WHERE user_id = ? AND context = ? AND date = ? AND deleted = 0
 	`, userID, context, date).Scan(
 		&note.ID, &note.UserID, &note.Context, &note.Date,
 		&note.Content, &note.ID, &note.CreatedAt, &note.UpdatedAt,
@@ -220,12 +220,12 @@ func (r *Repository) UpsertNote(note *models.Note, markForSync bool) error {
 
 	_, err := r.db.Exec(`
 		INSERT INTO notes (id, user_id, context, date, content, drive_file_id,
-			sync_pending, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			sync_pending, deleted, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
 		ON CONFLICT(user_id, context, date) DO UPDATE SET
-			content = excluded.content,
-			sync_pending = excluded.sync_pending,
-			updated_at = excluded.updated_at
+			content = CASE WHEN notes.deleted = 0 THEN excluded.content ELSE notes.content END,
+			sync_pending = CASE WHEN notes.deleted = 0 THEN excluded.sync_pending ELSE notes.sync_pending END,
+			updated_at = CASE WHEN notes.deleted = 0 THEN excluded.updated_at ELSE notes.updated_at END
 	`,
 		id, note.UserID, note.Context, note.Date, note.Content,
 		note.ID, syncPending, note.CreatedAt, note.UpdatedAt,
@@ -237,7 +237,7 @@ func (r *Repository) GetNotesByContext(userID, context string, limit, offset int
 	rows, err := r.db.Query(`
 		SELECT id, user_id, context, date, content, created_at, updated_at
 		FROM notes
-		WHERE user_id = ? AND context = ?
+		WHERE user_id = ? AND context = ? AND deleted = 0
 		ORDER BY date DESC
 		LIMIT ? OFFSET ?
 	`, userID, context, limit, offset)
@@ -263,9 +263,16 @@ func (r *Repository) GetNotesByContext(userID, context string, limit, offset int
 	return notes, rows.Err()
 }
 
-func (r *Repository) GetPendingSyncNotes(limit int) ([]models.Note, error) {
+// NoteWithMeta is an internal struct that includes sync metadata
+type NoteWithMeta struct {
+	models.Note
+	DriveFileID string
+	Deleted     bool
+}
+
+func (r *Repository) GetPendingSyncNotes(limit int) ([]NoteWithMeta, error) {
 	rows, err := r.db.Query(`
-		SELECT id, user_id, context, date, content, drive_file_id, created_at, updated_at
+		SELECT id, user_id, context, date, content, drive_file_id, deleted, created_at, updated_at
 		FROM notes
 		WHERE sync_pending = 1
 		ORDER BY updated_at ASC
@@ -276,16 +283,19 @@ func (r *Repository) GetPendingSyncNotes(limit int) ([]models.Note, error) {
 	}
 	defer rows.Close()
 
-	var notes []models.Note
+	var notes []NoteWithMeta
 	for rows.Next() {
-		var note models.Note
+		var note NoteWithMeta
 		var driveFileID sql.NullString
+		var deleted int
 		if err := rows.Scan(
 			&note.ID, &note.UserID, &note.Context, &note.Date,
-			&note.Content, &driveFileID, &note.CreatedAt, &note.UpdatedAt,
+			&note.Content, &driveFileID, &deleted, &note.CreatedAt, &note.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
+		note.DriveFileID = driveFileID.String
+		note.Deleted = deleted == 1
 		notes = append(notes, note)
 	}
 
@@ -307,7 +317,7 @@ func (r *Repository) GetAllNotesByUser(userID string) ([]models.Note, error) {
 	rows, err := r.db.Query(`
 		SELECT id, user_id, context, date, content, created_at, updated_at
 		FROM notes
-		WHERE user_id = ?
+		WHERE user_id = ? AND deleted = 0
 		ORDER BY updated_at DESC
 	`, userID)
 	if err != nil {
@@ -331,6 +341,19 @@ func (r *Repository) GetAllNotesByUser(userID string) ([]models.Note, error) {
 }
 
 func (r *Repository) DeleteNote(userID, context, date string) error {
+	// Mark as deleted and pending sync instead of actually deleting
+	// This allows sync worker to delete from Drive first
+	_, err := r.db.Exec(`
+		UPDATE notes
+		SET deleted = 1, sync_pending = 1, updated_at = CURRENT_TIMESTAMP
+		WHERE user_id = ? AND context = ? AND date = ?
+	`, userID, context, date)
+	return err
+}
+
+// HardDeleteNote actually removes the note from the database
+// Only called after successful Drive deletion
+func (r *Repository) HardDeleteNote(userID, context, date string) error {
 	_, err := r.db.Exec(`
 		DELETE FROM notes
 		WHERE user_id = ? AND context = ? AND date = ?
