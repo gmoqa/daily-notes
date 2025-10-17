@@ -240,6 +240,15 @@ func Login(c *fiber.Ctx) error {
 			} else {
 				log.Printf("Failed to check first login status: %v", err)
 			}
+
+			// Cleanup old deleted folders (older than 10 days) in background
+			go func() {
+				if err := driveService.CleanupOldDeletedFolders(); err != nil {
+					log.Printf("[AUTH] Failed to cleanup old deleted folders for user %s: %v", googleID, err)
+				} else {
+					log.Printf("[AUTH] Successfully cleaned up old deleted folders for user %s", googleID)
+				}
+			}()
 		}
 	}
 

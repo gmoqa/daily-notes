@@ -83,6 +83,67 @@ body.loaded .material-symbols-outlined {
     background: var(--bulma-border-hover);
 }
 
+/* Contexts Edit List Scrollbar */
+#contexts-edit-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+#contexts-edit-list::-webkit-scrollbar-track {
+    background: var(--bulma-scheme-main);
+    border-radius: 4px;
+}
+
+#contexts-edit-list::-webkit-scrollbar-thumb {
+    background: var(--bulma-primary);
+    border-radius: 4px;
+    border: 2px solid var(--bulma-scheme-main);
+}
+
+#contexts-edit-list::-webkit-scrollbar-thumb:hover {
+    background: var(--bulma-primary-dark);
+}
+
+/* Firefox scrollbar */
+#contexts-edit-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--bulma-primary) var(--bulma-scheme-main);
+}
+
+/* Context action buttons */
+.context-action-btn {
+    transition: background 0.2s ease !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.context-action-btn:hover {
+    text-decoration: none !important;
+}
+
+.context-action-btn:focus {
+    box-shadow: none !important;
+    text-decoration: none !important;
+}
+
+/* Edit button hover - orange */
+.context-edit-btn:hover {
+    background: rgba(255, 140, 0, 0.15) !important;
+}
+
+.context-edit-btn:hover .material-symbols-outlined {
+    color: #ff8c00 !important;
+}
+
+/* Delete button hover - red */
+.context-delete-btn:hover {
+    background: rgba(255, 56, 96, 0.15) !important;
+}
+
+.context-delete-btn:hover .material-symbols-outlined {
+    color: #ff3860 !important;
+}
+
 /* Context Select */
 .context-select-wrapper {
     position: relative;

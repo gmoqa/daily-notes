@@ -999,95 +999,46 @@ class UIManager {
     renderContextsEditList() {
         const contextsList = state.get('contexts');
         const container = document.getElementById('contexts-edit-list');
-        
+
         if (!container) return;
-        
+
         if (contextsList.length === 0) {
-            container.innerHTML = '<p class="has-text-centered has-text-grey-light py-4">No contexts yet</p>';
+            container.innerHTML = '<p class="has-text-centered has-text-grey-light py-5">No contexts yet. Create your first context to get started!</p>';
             return;
         }
-        
-        container.innerHTML = contextsList.map(ctx => {
+
+        container.innerHTML = contextsList.map((ctx, index) => {
             // Normalize old hex colors to Bulma colors
             const normalizedColor = this.normalizeToBulmaColor(ctx.color);
-            const colors = ['text', 'link', 'primary', 'info', 'success', 'warning', 'danger'];
-            const colorButtons = colors.map(color => {
-                const isActive = normalizedColor === color;
-                const borderStyle = isActive ? 'border: 3px solid var(--bulma-text)' : 'border: 3px solid transparent';
-                return `
-                    <button type="button" class="button color-btn ${isActive ? 'is-active' : ''}" 
-                            data-color="${color}" 
-                            data-context-id="${ctx.id}"
-                            title="${this.getColorLabel(color)}" 
-                            style="width: 32px; height: 32px; padding: 3px; ${borderStyle}; border-radius: 6px;">
-                        <span style="display: block; width: 100%; height: 100%; background: var(--bulma-${color}); border-radius: 4px;"></span>
-                    </button>
-                `;
-            }).join('');
-            
+
             return `
-            <div class="mb-3" style="padding: 1rem; background: var(--bulma-scheme-main-bis); border: 1px solid var(--bulma-border); border-radius: 6px;">
-                <div class="field" style="margin-bottom: 0.75rem;">
-                    <label class="label" style="font-size: 0.875rem; margin-bottom: 0.5rem;">Name</label>
-                    <div class="control">
-                        <input type="text" class="input is-small" value="${ctx.name}" 
-                               data-context-id="${ctx.id}" data-field="name"
-                               style="font-size: 0.875rem;">
-                    </div>
+            <div class="is-flex is-align-items-center is-justify-content-space-between mb-3"
+                 style="padding: 0.75rem 1rem; background: var(--bulma-scheme-main-bis); border-left: 3px solid var(--bulma-${normalizedColor}); border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+                <div class="is-flex is-align-items-center" style="gap: 0.75rem; flex: 1; min-width: 0;">
+                    <span style="display: block; width: 12px; height: 12px; background: var(--bulma-${normalizedColor}); border-radius: 50%; flex-shrink: 0;"></span>
+                    <span style="font-size: 0.9rem; font-weight: 500; color: var(--bulma-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ctx.name}</span>
                 </div>
-                <div class="field" style="margin-bottom: 0.75rem;">
-                    <label class="label" style="font-size: 0.875rem; margin-bottom: 0.5rem;">Color</label>
-                    <div class="buttons" style="display: flex; gap: 0.5rem; margin-bottom: 0;">
-                        ${colorButtons}
-                    </div>
-                    <input type="hidden" data-context-id="${ctx.id}" data-field="color" value="${normalizedColor}">
-                </div>
-                <div class="is-flex is-justify-content-flex-end">
-                    <button class="button is-small is-primary" 
-                            onclick="window.updateContextFromSettings('${ctx.id}')"
-                            style="color: white; font-size: 0.75rem;">
+                <div class="is-flex is-align-items-center" style="gap: 0.35rem;">
+                    <button class="button is-small context-action-btn context-edit-btn"
+                            onclick="window.showEditContextModal('${ctx.id}')"
+                            title="Edit context"
+                            style="padding: 0.35rem; border: none; background: transparent; border-radius: 50%; width: 32px; height: 32px;">
                         <span class="icon is-small">
-                            <span class="material-symbols-outlined" style="font-size: 16px;">save</span>
+                            <span class="material-symbols-outlined" style="font-size: 18px; color: var(--bulma-grey);">edit</span>
                         </span>
-                        <span>Update</span>
+                    </button>
+                    <button class="button is-small context-action-btn context-delete-btn"
+                            onclick="window.showDeleteContextModal('${ctx.id}', '${ctx.name.replace(/'/g, "\\\'")}')"
+                            title="Delete context"
+                            style="padding: 0.35rem; border: none; background: transparent; border-radius: 50%; width: 32px; height: 32px;">
+                        <span class="icon is-small">
+                            <span class="material-symbols-outlined" style="font-size: 18px; color: var(--bulma-grey);">delete</span>
+                        </span>
                     </button>
                 </div>
             </div>
         `;
         }).join('');
-        
-        // Setup color button handlers
-        this.setupContextEditColorButtons();
-    }
-    
-    setupContextEditColorButtons() {
-        const colorButtons = document.querySelectorAll('#contexts-edit-list .color-btn');
-        
-        colorButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                const color = button.dataset.color;
-                const contextId = button.dataset.contextId;
-                
-                // Find the hidden input for this context
-                const hiddenInput = document.querySelector(`input[type="hidden"][data-context-id="${contextId}"][data-field="color"]`);
-                if (hiddenInput) {
-                    hiddenInput.value = color;
-                }
-                
-                // Update active state for this context's buttons
-                const contextButtons = document.querySelectorAll(`#contexts-edit-list .color-btn[data-context-id="${contextId}"]`);
-                contextButtons.forEach(btn => {
-                    btn.classList.remove('is-active');
-                    btn.style.border = '3px solid transparent';
-                    btn.style.borderRadius = '6px';
-                });
-                
-                button.classList.add('is-active');
-                button.style.border = '3px solid var(--bulma-text)';
-                button.style.borderRadius = '6px';
-            });
-        });
     }
 
     getColorLabel(color) {

@@ -309,7 +309,40 @@ func (s *Service) RenameContext(contextID, oldName, newName string) error {
 	return nil
 }
 
-func (s *Service) DeleteContext(contextID string) error {
+func (s *Service) DeleteContext(contextID, contextName string) error {
+	// Get root folder
+	rootFolderID, err := s.getOrCreateFolder("dailynotes.dev", "")
+	if err != nil {
+		return err
+	}
+
+	// Create _DELETED folder if it doesn't exist
+	deletedFolderID, err := s.getOrCreateFolder("_DELETED", rootFolderID)
+	if err != nil {
+		return err
+	}
+
+	// Move the context folder to _DELETED instead of deleting it
+	// This preserves the data in case it's needed later
+	if contextID != "" {
+		// Append timestamp to folder name to avoid conflicts
+		newName := fmt.Sprintf("%s_%s", contextName, time.Now().Format("20060102_150405"))
+
+		fileMetadata := &drive.File{
+			Name: newName,
+		}
+
+		// Move folder by updating its parent and name
+		_, err = s.client.Files.Update(contextID, fileMetadata).
+			AddParents(deletedFolderID).
+			RemoveParents(rootFolderID).
+			Do()
+		if err != nil {
+			return fmt.Errorf("failed to move folder to _DELETED: %w", err)
+		}
+	}
+
+	// Remove from config
 	config, err := s.GetConfig()
 	if err != nil {
 		return err
@@ -675,4 +708,64 @@ func (s *Service) IsFirstLogin() (bool, error) {
 
 	// If no config.json, it's first login
 	return len(configList.Files) == 0, nil
+}
+
+// CleanupOldDeletedFolders removes folders from _DELETED that are older than 10 days
+func (s *Service) CleanupOldDeletedFolders() error {
+	// Get root folder
+	rootFolderID, err := s.getOrCreateFolder("dailynotes.dev", "")
+	if err != nil {
+		return err
+	}
+
+	// Check if _DELETED folder exists
+	query := fmt.Sprintf("name='_DELETED' and mimeType='application/vnd.google-apps.folder' and trashed=false and '%s' in parents", rootFolderID)
+	fileList, err := s.client.Files.List().
+		Q(query).
+		Fields("files(id)").
+		Do()
+	if err != nil {
+		return err
+	}
+
+	// If _DELETED folder doesn't exist, nothing to clean up
+	if len(fileList.Files) == 0 {
+		return nil
+	}
+
+	deletedFolderID := fileList.Files[0].Id
+
+	// Get all folders inside _DELETED with their modified times
+	foldersQuery := fmt.Sprintf("'%s' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false", deletedFolderID)
+	folders, err := s.client.Files.List().
+		Q(foldersQuery).
+		Fields("files(id, name, modifiedTime)").
+		Do()
+	if err != nil {
+		return err
+	}
+
+	// Calculate cutoff time (10 days ago)
+	cutoffTime := time.Now().AddDate(0, 0, -10)
+
+	// Delete folders older than 10 days
+	for _, folder := range folders.Files {
+		modifiedTime, err := time.Parse(time.RFC3339, folder.ModifiedTime)
+		if err != nil {
+			continue // Skip if we can't parse the time
+		}
+
+		// If folder is older than 10 days, permanently delete it
+		if modifiedTime.Before(cutoffTime) {
+			fmt.Printf("[Drive] Permanently deleting old folder from _DELETED: %s (modified: %s)\n", folder.Name, folder.ModifiedTime)
+			err := s.client.Files.Delete(folder.Id).Do()
+			if err != nil {
+				fmt.Printf("[Drive] Failed to delete folder %s: %v\n", folder.Name, err)
+				// Continue with other folders even if one fails
+				continue
+			}
+		}
+	}
+
+	return nil
 }

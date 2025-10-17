@@ -182,11 +182,52 @@ func DeleteContext(c *fiber.Ctx) error {
 		return badRequest(c, "context ID is required")
 	}
 
+	userID := middleware.GetUserID(c)
+
+	// Get the context to retrieve its name
+	context, err := repo.GetContextByID(contextID)
+	if err != nil {
+		return serverErrorWithDetails(c, "Failed to fetch context", err)
+	}
+	if context == nil {
+		return badRequest(c, "Context not found")
+	}
+
+	// Get all notes for this context and mark them as deleted
+	// This will trigger the sync worker to delete them from Drive
+	notes, err := repo.GetNotesByContext(userID, context.Name, 1000, 0)
+	if err != nil {
+		return serverErrorWithDetails(c, "Failed to fetch notes", err)
+	}
+
+	// Mark all notes in this context as deleted (soft delete with sync pending)
+	for _, note := range notes {
+		if err := repo.DeleteNote(userID, context.Name, note.Date); err != nil {
+			// Log but continue
+			c.Append("X-Warning", "Some notes failed to be marked for deletion")
+		}
+	}
+
 	// Delete from local database
 	if err := repo.DeleteContext(contextID); err != nil {
 		return serverErrorWithDetails(c, "Failed to delete context", err)
 	}
 
-	// Note: Deletion from Drive should be handled manually or by a separate cleanup job
-	return success(c, fiber.Map{"message": "Context deleted successfully"})
+	// Move folder to _DELETED in Google Drive (async)
+	go func() {
+		driveService, err := getDriveService(c)
+		if err != nil {
+			// Can't get drive service, skip Drive sync
+			return
+		}
+
+		if err := driveService.DeleteContext(contextID, context.Name); err != nil {
+			// Log error but context is already deleted locally
+			// The sync worker will handle note deletions
+		}
+	}()
+
+	return success(c, fiber.Map{
+		"message": "Context deleted successfully. All notes have been moved to _DELETED folder in Google Drive.",
+	})
 }
