@@ -335,6 +335,11 @@ func UpdateSettings(a *app.App) fiber.Handler {
 		})
 	}
 
+	// Validate request
+	if err := a.Validator.Validate(&req); err != nil {
+		return validationError(c, err)
+	}
+
 	sessionID := c.Cookies("session_id")
 	sess, err := a.SessionStore.Get(sessionID)
 	if err != nil || sess == nil {

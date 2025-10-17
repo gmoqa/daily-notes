@@ -4,7 +4,6 @@ import (
 	"daily-notes/app"
 	"daily-notes/middleware"
 	"daily-notes/models"
-	"regexp"
 	"strings"
 	"time"
 
@@ -35,37 +34,17 @@ func CreateContext(a *app.App) fiber.Handler {
 		return badRequest(c, "Invalid request body")
 	}
 
+	// Trim whitespace
 	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" {
-		return badRequest(c, "name is required")
-	}
-	if len(req.Name) > 100 {
-		return badRequest(c, "name must be 100 characters or less")
-	}
-	if len(req.Name) < 2 {
-		return badRequest(c, "name must be at least 2 characters")
-	}
 
-	validName := regexp.MustCompile(`^[\p{L}\p{N}\s\-_.,&()]+$`)
-	if !validName.MatchString(req.Name) {
-		return badRequest(c, "name contains invalid characters")
-	}
-
-	// Validate color is from Bulma palette
-	validColors := map[string]bool{
-		"text":    true,
-		"link":    true,
-		"primary": true,
-		"info":    true,
-		"success": true,
-		"warning": true,
-		"danger":  true,
-	}
-
+	// Set default color if not provided
 	if req.Color == "" {
 		req.Color = "primary"
-	} else if !validColors[req.Color] {
-		return badRequest(c, "color must be one of: text, link, primary, info, success, warning, danger")
+	}
+
+	// Validate request
+	if err := a.Validator.Validate(&req); err != nil {
+		return validationError(c, err)
 	}
 
 	userID := middleware.GetUserID(c)
@@ -110,37 +89,17 @@ func UpdateContext(a *app.App) fiber.Handler {
 		return badRequest(c, "Invalid request body")
 	}
 
+	// Trim whitespace
 	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" {
-		return badRequest(c, "name is required")
-	}
-	if len(req.Name) > 100 {
-		return badRequest(c, "name must be 100 characters or less")
-	}
-	if len(req.Name) < 2 {
-		return badRequest(c, "name must be at least 2 characters")
-	}
 
-	validName := regexp.MustCompile(`^[\p{L}\p{N}\s\-_.,&()]+$`)
-	if !validName.MatchString(req.Name) {
-		return badRequest(c, "name contains invalid characters")
-	}
-
-	// Validate color is from Bulma palette
-	validColors := map[string]bool{
-		"text":    true,
-		"link":    true,
-		"primary": true,
-		"info":    true,
-		"success": true,
-		"warning": true,
-		"danger":  true,
-	}
-
+	// Set default color if not provided
 	if req.Color == "" {
 		req.Color = "primary"
-	} else if !validColors[req.Color] {
-		return badRequest(c, "color must be one of: text, link, primary, info, success, warning, danger")
+	}
+
+	// Validate request
+	if err := a.Validator.Validate(&req); err != nil {
+		return validationError(c, err)
 	}
 
 	// Get the old context to check if name is changing

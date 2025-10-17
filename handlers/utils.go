@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"daily-notes/validator"
 	"log/slog"
 
 	"github.com/gofiber/fiber/v2"
@@ -37,4 +38,17 @@ func serverErrorWithDetails(c *fiber.Ctx, message string, err error) error {
 	)
 
 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": message})
+}
+
+// validationError returns a validation error response
+func validationError(c *fiber.Ctx, err error) error {
+	if validationErrs, ok := err.(validator.ValidationErrors); ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":  "Validation failed",
+			"errors": validationErrs,
+		})
+	}
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		"error": err.Error(),
+	})
 }
