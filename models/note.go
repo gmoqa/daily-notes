@@ -25,10 +25,10 @@ type User struct {
 }
 
 type UpdateSettingsRequest struct {
-	Theme                string `json:"theme"`
-	WeekStart            int    `json:"weekStart"`
-	Timezone             string `json:"timezone"`
-	DateFormat           string `json:"dateFormat"`
+	Theme                string `json:"theme" validate:"required,theme"`
+	WeekStart            int    `json:"weekStart" validate:"gte=0,lte=6"`
+	Timezone             string `json:"timezone" validate:"required,timezone"`
+	DateFormat           string `json:"dateFormat" validate:"required,oneof=DD-MM-YY MM-DD-YY YYYY-MM-DD"`
 	UniqueContextMode    bool   `json:"uniqueContextMode"`
 	ShowBreadcrumb       bool   `json:"showBreadcrumb"`
 	ShowMarkdownEditor   bool   `json:"showMarkdownEditor"`
@@ -54,19 +54,19 @@ type Context struct {
 }
 
 type CreateNoteRequest struct {
-	Context string `json:"context"`
-	Date    string `json:"date"`
-	Content string `json:"content"`
+	Context string `json:"context" validate:"required,min=1,max=100,contextname"`
+	Date    string `json:"date" validate:"required,dateformat"`
+	Content string `json:"content"` // Content can be empty
 }
 
 type CreateContextRequest struct {
-	Name  string `json:"name"`
-	Color string `json:"color"`
+	Name  string `json:"name" validate:"required,min=2,max=100,contextname"`
+	Color string `json:"color" validate:"required,bulmacolor"`
 }
 
 type UpdateContextRequest struct {
-	Name  string `json:"name"`
-	Color string `json:"color"`
+	Name  string `json:"name" validate:"required,min=2,max=100,contextname"`
+	Color string `json:"color" validate:"required,bulmacolor"`
 }
 
 type Session struct {
@@ -85,9 +85,9 @@ type Session struct {
 }
 
 type LoginRequest struct {
-	AccessToken  string `json:"access_token"`
+	AccessToken  string `json:"access_token" validate:"required_without=Code"`
 	RefreshToken string `json:"refresh_token,omitempty"`
 	ExpiresIn    int64  `json:"expires_in,omitempty"`
 	// For authorization code flow
-	Code string `json:"code,omitempty"`
+	Code string `json:"code,omitempty" validate:"required_without=AccessToken"`
 }

@@ -71,8 +71,10 @@ func UpsertNote(a *app.App) fiber.Handler {
 	if err := c.BodyParser(&req); err != nil {
 		return badRequest(c, "Invalid request body")
 	}
-	if req.Context == "" || req.Date == "" {
-		return badRequest(c, "context and date are required")
+
+	// Validate request
+	if err := a.Validator.Validate(&req); err != nil {
+		return validationError(c, err)
 	}
 
 	userID := middleware.GetUserID(c)

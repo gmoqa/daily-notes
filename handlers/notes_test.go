@@ -235,7 +235,7 @@ func TestUpsertNote(t *testing.T) {
 				"content": "Test content",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "context and date are required",
+			expectedError:  "Validation failed",
 		},
 		{
 			name: "Missing date",
@@ -244,7 +244,7 @@ func TestUpsertNote(t *testing.T) {
 				"content": "Test content",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "context and date are required",
+			expectedError:  "Validation failed",
 		},
 		{
 			name: "Create new note",
