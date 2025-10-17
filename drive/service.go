@@ -2,6 +2,7 @@ package drive
 
 import (
 	"context"
+	"daily-notes/config"
 	"daily-notes/models"
 	"encoding/json"
 	"errors"
@@ -11,13 +12,15 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 )
 
 type Service struct {
-	client *drive.Service
-	userID string
+	client      *drive.Service
+	userID      string
+	tokenSource oauth2.TokenSource
 }
 
 type Config struct {
@@ -26,20 +29,33 @@ type Config struct {
 }
 
 func NewService(ctx context.Context, token *oauth2.Token, userID string) (*Service, error) {
-	config := &oauth2.Config{
-		Scopes: []string{drive.DriveFileScope},
+	oauthConfig := &oauth2.Config{
+		ClientID:     config.AppConfig.GoogleClientID,
+		ClientSecret: config.AppConfig.GoogleClientSecret,
+		RedirectURL:  config.AppConfig.GoogleRedirectURL,
+		Scopes:       []string{drive.DriveFileScope},
+		Endpoint:     google.Endpoint,
 	}
 
-	client := config.Client(ctx, token)
+	// Create a token source that will automatically refresh the token
+	tokenSource := oauthConfig.TokenSource(ctx, token)
+	client := oauth2.NewClient(ctx, tokenSource)
+
 	srv, err := drive.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return nil, err
 	}
 
 	return &Service{
-		client: srv,
-		userID: userID,
+		client:      srv,
+		userID:      userID,
+		tokenSource: tokenSource,
 	}, nil
+}
+
+// GetCurrentToken returns the current (possibly refreshed) token
+func (s *Service) GetCurrentToken() (*oauth2.Token, error) {
+	return s.tokenSource.Token()
 }
 
 func (s *Service) getOrCreateFolder(name string, parentID string) (string, error) {

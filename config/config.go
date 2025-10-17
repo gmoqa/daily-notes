@@ -8,9 +8,11 @@ import (
 )
 
 type Config struct {
-	Port           string
-	Env            string
-	GoogleClientID string
+	Port               string
+	Env                string
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
 }
 
 var AppConfig *Config
@@ -19,13 +21,18 @@ func Load() {
 	_ = godotenv.Load()
 
 	AppConfig = &Config{
-		Port:           GetEnv("PORT", "3000"),
-		Env:            GetEnv("ENV", "development"),
-		GoogleClientID: GetEnv("GOOGLE_CLIENT_ID", ""),
+		Port:               GetEnv("PORT", "3000"),
+		Env:                GetEnv("ENV", "development"),
+		GoogleClientID:     GetEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret: GetEnv("GOOGLE_CLIENT_SECRET", ""),
+		GoogleRedirectURL:  GetEnv("GOOGLE_REDIRECT_URL", "postmessage"),
 	}
 
 	if AppConfig.GoogleClientID == "" {
 		log.Fatal("GOOGLE_CLIENT_ID is required")
+	}
+	if AppConfig.GoogleClientSecret == "" {
+		log.Fatal("GOOGLE_CLIENT_SECRET is required")
 	}
 }
 
