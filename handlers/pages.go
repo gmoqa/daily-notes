@@ -12,7 +12,7 @@ func HomePage(c *fiber.Ctx) error {
 	// Set HTML content type
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	// Render with Templ
-	return pages.Index(config.AppConfig.GoogleClientID).Render(c.Context(), c.Response().BodyWriter())
+	return pages.Index(config.AppConfig.GoogleClientID, config.AppConfig.Env).Render(c.Context(), c.Response().BodyWriter())
 }
 
 func ServerTime(c *fiber.Ctx) error {

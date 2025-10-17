@@ -255,25 +255,26 @@ templ Modals() {
 	<!-- Onboarding Modal -->
 	<div class="modal" id="onboarding-modal">
 		<div class="modal-background"></div>
-		<div class="modal-card">
-			<header class="modal-card-head">
-				<p class="modal-card-title">Welcome to dailynotes.dev</p>
+		<div class="modal-card" style="border-radius: 12px; overflow: hidden;">
+			<header class="modal-card-head" style="background: linear-gradient(135deg, var(--bulma-scheme-main-ter) 0%, var(--bulma-scheme-main-bis) 100%); border: none; padding: 1.25rem 1.5rem;">
+				<p class="modal-card-title" style="color: var(--bulma-text-strong); font-size: 1.5rem; font-weight: 700;">Welcome to dailynotes.dev</p>
 			</header>
-			<section class="modal-card-body">
+			<section class="modal-card-body" style="padding: 1.5rem;">
 				<div class="content">
-					<h4>Quick Start Guide</h4>
+					<h4 style="color: var(--bulma-text-strong); margin-bottom: 1.25rem;">Quick Start Guide</h4>
 					<p><strong>1. Create a Context</strong><br/>
-					Contexts help you organize notes by project or client. Click "+ New Context" to get started.</p>
+					Organize your notes by project or client. Click New Context to begin.</p>
 					<p><strong>2. Write Notes</strong><br/>
-					Select a context and start writing. Notes auto-save locally and sync to your Google Drive every 15 seconds.</p>
+					Select a context and start writing. Notes are auto-saved and synced to your Google Drive.</p>
 					<p><strong>3. Navigate</strong><br/>
-					Use the calendar or notes list to browse previous entries. Your last used context is automatically selected when you return.</p>
-					<p><strong>4. Offline-First</strong><br/>
-					The app works without internet. Changes sync automatically when you're back online.</p>
+					Notes don't use titles — they're saved by date in Markdown, one file per day.<br/>
+					Pick a date to open that day's note.</p>
+					<p><strong>4. Pricing</strong><br/>
+					Our costs are really low, which is why DailyNotes can stay free — forever.</p>
 				</div>
 			</section>
-			<footer class="modal-card-foot is-justify-content-center">
-				<button onclick="closeOnboardingModal()" class="button is-primary">Got it!</button>
+			<footer class="modal-card-foot is-justify-content-flex-end" style="padding: 1.5rem; border-top: none;">
+				<button onclick="closeOnboardingModal()" class="button is-primary" style="color: white; font-weight: 600; padding: 0.75rem 2rem; border-radius: 8px;">Got it!</button>
 			</footer>
 		</div>
 	</div>

@@ -109,7 +109,8 @@ class AuthManager {
                         dateFormat: 'DD-MM-YY',
                         showBreadcrumb: false,
                         showMarkdownEditor: false
-                    }
+                    },
+                    isFirstLogin: data.user.isFirstLogin || false
                 });
 
                 console.log('[AUTH] Emitting auth-success event');

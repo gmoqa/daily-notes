@@ -137,6 +137,20 @@ func Login(c *fiber.Ctx) error {
 	}
 	c.Cookie(cookie)
 
+	// Check if this is first login by checking Google Drive
+	isFirstLogin := false
+	if token.AccessToken != "" {
+		driveService, err := drive.NewService(context.Background(), token, googleID)
+		if err == nil {
+			firstLogin, err := driveService.IsFirstLogin()
+			if err == nil {
+				isFirstLogin = firstLogin
+			} else {
+				log.Printf("Failed to check first login status: %v", err)
+			}
+		}
+	}
+
 	// Save/update user in database
 	user := &models.User{
 		ID:          googleID,
@@ -148,6 +162,7 @@ func Login(c *fiber.Ctx) error {
 		CreatedAt:   time.Now(),
 		LastLoginAt: time.Now(),
 	}
+
 	if err := repo.UpsertUser(user); err != nil {
 		log.Printf("Failed to save user to database: %v", err)
 	}
@@ -169,11 +184,12 @@ func Login(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"user": fiber.Map{
-			"id":       sess.UserID,
-			"email":    sess.Email,
-			"name":     sess.Name,
-			"picture":  sess.Picture,
-			"settings": sess.Settings,
+			"id":          sess.UserID,
+			"email":       sess.Email,
+			"name":        sess.Name,
+			"picture":     sess.Picture,
+			"settings":    sess.Settings,
+			"isFirstLogin": isFirstLogin,
 		},
 	})
 }

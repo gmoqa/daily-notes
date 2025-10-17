@@ -5,8 +5,8 @@ import (
 	"daily-notes/templates/components"
 )
 
-templ Index(googleClientID string) {
-	@layouts.Base("dailynotes.dev - Your daily work notes, organized & synced", googleClientID) {
+templ Index(googleClientID string, env string) {
+	@layouts.Base("dailynotes.dev - Your daily work notes, organized & synced", googleClientID, env) {
 		@components.AuthSection()
 		<section id="app-section" role="main" aria-label="Application">
 			@components.MobileNavigation()

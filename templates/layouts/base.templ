@@ -1,10 +1,11 @@
 package layouts
 
-script initGoogleClientID(googleClientID string) {
+script initGlobalVars(googleClientID string, env string) {
 	window.__GOOGLE_CLIENT_ID__ = googleClientID;
+	window.__ENV__ = env;
 }
 
-templ Base(title string, googleClientID string) {
+templ Base(title string, googleClientID string, env string) {
 	<!DOCTYPE html>
 	<html lang="en" data-theme="dark">
 		<head>
@@ -41,7 +42,7 @@ templ Base(title string, googleClientID string) {
 				const theme = localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 				document.documentElement.setAttribute('data-theme', theme);
 			</script>
-			@initGoogleClientID(googleClientID)
+			@initGlobalVars(googleClientID, env)
 		<link rel="stylesheet" href="/static/vendor/bulma/bulma.min.css"/>
 		<link rel="stylesheet" href="/static/vendor/fonts/material-symbols.css"/>
 		<link rel="stylesheet" href="/static/vendor/fonts/inter.css"/>
