@@ -99,6 +99,7 @@ class AuthManager {
 
             if (data.success) {
                 console.log('[AUTH] Login successful, updating state');
+                console.log('[AUTH] Received isFirstLogin:', data.user.isFirstLogin);
 
                 state.update({
                     currentUser: data.user,
@@ -113,6 +114,7 @@ class AuthManager {
                     isFirstLogin: data.user.isFirstLogin || false
                 });
 
+                console.log('[AUTH] State updated with isFirstLogin:', state.get('isFirstLogin'));
                 console.log('[AUTH] Emitting auth-success event');
                 // Emit event for UI to react (loader will be hidden by showApp)
                 events.emit('auth-success');

@@ -236,8 +236,9 @@ func Login(c *fiber.Ctx) error {
 			firstLogin, err := driveService.IsFirstLogin()
 			if err == nil {
 				isFirstLogin = firstLogin
+				log.Printf("[AUTH] IsFirstLogin check completed for user %s: %v", googleID, isFirstLogin)
 			} else {
-				log.Printf("Failed to check first login status: %v", err)
+				log.Printf("[AUTH] Failed to check first login status for user %s: %v", googleID, err)
 			}
 
 			// Cleanup old deleted folders (older than 10 days) in background
@@ -248,7 +249,11 @@ func Login(c *fiber.Ctx) error {
 					log.Printf("[AUTH] Successfully cleaned up old deleted folders for user %s", googleID)
 				}
 			}()
+		} else {
+			log.Printf("[AUTH] Failed to create drive service for user %s: %v", googleID, err)
 		}
+	} else {
+		log.Printf("[AUTH] No access token available for user %s, cannot check first login", googleID)
 	}
 
 	// Check if this is first login (no data in local DB)
@@ -265,17 +270,20 @@ func Login(c *fiber.Ctx) error {
 		}()
 	}
 
-	return c.JSON(fiber.Map{
+	response := fiber.Map{
 		"success": true,
 		"user": fiber.Map{
-			"id":          sess.UserID,
-			"email":       sess.Email,
-			"name":        sess.Name,
-			"picture":     sess.Picture,
-			"settings":    sess.Settings,
+			"id":           sess.UserID,
+			"email":        sess.Email,
+			"name":         sess.Name,
+			"picture":      sess.Picture,
+			"settings":     sess.Settings,
 			"isFirstLogin": isFirstLogin,
 		},
-	})
+	}
+
+	log.Printf("[AUTH] Login response for user %s: isFirstLogin=%v", googleID, isFirstLogin)
+	return c.JSON(response)
 }
 
 func Logout(c *fiber.Ctx) error {

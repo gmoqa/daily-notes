@@ -655,14 +655,19 @@ class UIManager {
         const isFirstLogin = state.get('isFirstLogin');
         const isDevelopment = window.__ENV__ === 'development';
 
+        console.log('[UI] showApp - isFirstLogin:', isFirstLogin, 'isDevelopment:', isDevelopment);
+
         // Show onboarding only if it's the user's first login
         // (verified by Google Drive - no dailynotes.dev folder/config exists)
         // In production, ONLY show when isFirstLogin is true
         // In development, always show for testing purposes
         if (isDevelopment || isFirstLogin) {
+            console.log('[UI] Showing onboarding modal');
             setTimeout(() => {
                 this.elements.onboardingModal?.classList.add('is-active');
             }, 500);
+        } else {
+            console.log('[UI] NOT showing onboarding modal');
         }
     }
 
