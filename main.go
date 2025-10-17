@@ -135,7 +135,7 @@ func main() {
 	api.Get("/notes", handlers.GetNote)
 	api.Post("/notes", handlers.UpsertNote)
 	api.Get("/notes/list", handlers.GetNotesByContext)
-	api.Delete("/notes/:id", handlers.DeleteNote)
+	api.Delete("/notes/:context/:date", handlers.DeleteNote)
 	api.Put("/settings", handlers.UpdateSettings)
 	api.Post("/sync/drive", handlers.SyncFromDrive)
 

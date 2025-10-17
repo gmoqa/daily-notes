@@ -596,3 +596,34 @@ func (s *Service) GetAllNotesInContext(contextName string) ([]models.Note, error
 
 	return notes, nil
 }
+
+func (s *Service) DeleteNote(contextName, date string) error {
+	rootFolderID, err := s.getOrCreateFolder("dailynotes.dev", "")
+	if err != nil {
+		return err
+	}
+
+	contextFolderID, err := s.getOrCreateFolder(contextName, rootFolderID)
+	if err != nil {
+		return err
+	}
+
+	filename := s.dateToFilename(date)
+	query := fmt.Sprintf("name='%s' and '%s' in parents and trashed=false", filename, contextFolderID)
+
+	fileList, err := s.client.Files.List().
+		Q(query).
+		Fields("files(id)").
+		Do()
+	if err != nil {
+		return err
+	}
+
+	if len(fileList.Files) == 0 {
+		// File not found - not an error, note might not have been synced yet
+		return nil
+	}
+
+	// Delete the file (move to trash)
+	return s.client.Files.Delete(fileList.Files[0].Id).Do()
+}

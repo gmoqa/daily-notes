@@ -33,6 +33,15 @@ export class SyncQueue {
             } else {
                 this.queue.push({ ...operation, id: Date.now() + Math.random() });
             }
+        } else if (operation.type === 'delete-note') {
+            // Remove any pending save operations for this note
+            this.queue = this.queue.filter(
+                op => !(op.type === 'save-note' &&
+                    op.data.context === operation.data.context &&
+                    op.data.date === operation.data.date)
+            );
+            // Add the delete operation
+            this.queue.push({ ...operation, id: Date.now() + Math.random() });
         } else {
             this.queue.push({ ...operation, id: Date.now() + Math.random() });
         }
@@ -133,7 +142,7 @@ export class SyncQueue {
     }
 
     getOperationKey(op) {
-        if (op.type === 'save-note') {
+        if (op.type === 'save-note' || op.type === 'delete-note') {
             return `${op.type}-${op.data.context}-${op.data.date}`;
         }
         return `${op.type}-${op.id}`;
@@ -143,6 +152,9 @@ export class SyncQueue {
         switch (op.type) {
             case 'save-note':
                 return await this.api.saveNote(op.data);
+
+            case 'delete-note':
+                return await this.api.deleteNote(op.data.context, op.data.date);
 
             case 'create-context':
                 return await this.api.createContext(op.data);
