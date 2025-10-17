@@ -348,7 +348,7 @@ class NotesManager {
             }
         }
 
-        // 4. Queue for background sync with Drive
+        // 4. Queue for background sync
         events.emit('sync-add', {
             type: 'delete-note',
             data: { context, date },
