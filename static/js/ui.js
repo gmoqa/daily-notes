@@ -534,7 +534,7 @@ class UIManager {
 
                 // If there are no contexts at all, show a message to create the first one
                 if (contexts.length === 0) {
-                    markdownEditor.setPlaceholderMessage('Click "+ New Context" to create your first context and start writing notes');
+                    markdownEditor.setPlaceholderMessage('Click "New Context" to create your first context and start writing notes');
                 }
             }
         });
@@ -651,17 +651,21 @@ class UIManager {
         // Update new context button visibility
         this.updateNewContextButtonVisibility();
 
-        // Check if this is first login based on backend response
-        const isFirstLogin = state.get('isFirstLogin');
+        // Check if user has no contexts (new user or deleted all contexts)
+        const hasNoContexts = state.get('hasNoContexts');
+        const contexts = state.get('contexts') || [];
         const isDevelopment = window.__ENV__ === 'development';
 
-        console.log('[UI] showApp - isFirstLogin:', isFirstLogin, 'isDevelopment:', isDevelopment);
+        console.log('[UI] showApp - hasNoContexts:', hasNoContexts, 'contexts.length:', contexts.length, 'isDevelopment:', isDevelopment);
 
-        // Show onboarding only if it's the user's first login
-        // (verified by Google Drive - no dailynotes.dev folder/config exists)
-        // In production, ONLY show when isFirstLogin is true
+        // Show onboarding modal when user has no contexts
+        // This happens when:
+        // - New user (never created a context)
+        // - User deleted all their contexts
         // In development, always show for testing purposes
-        if (isDevelopment || isFirstLogin) {
+        const shouldShowWelcome = hasNoContexts || contexts.length === 0;
+
+        if (isDevelopment || shouldShowWelcome) {
             console.log('[UI] Showing onboarding modal');
             setTimeout(() => {
                 this.elements.onboardingModal?.classList.add('is-active');
