@@ -228,20 +228,31 @@ func Login(c *fiber.Ctx) error {
 	}
 	c.Cookie(cookie)
 
-	// Check if this is first login by checking Google Drive
-	isFirstLogin := false
+	// Check if this is first login by checking if user has any contexts
+	// This is more reliable than checking Drive folder as the folder might exist
+	// but the user might have deleted all contexts
+	contexts, err := repo.GetContexts(googleID)
+	hasNoContexts := err == nil && len(contexts) == 0
+
+	log.Printf("[AUTH] User %s has %d contexts (hasNoContexts=%v)", googleID, len(contexts), hasNoContexts)
+
+	// If user has no contexts, try to import from Drive
+	if hasNoContexts && syncWorker != nil && token.AccessToken != "" {
+		// Import data from Drive in background
+		go func() {
+			log.Printf("[AUTH] User %s has no contexts, importing from Drive...", googleID)
+			if err := syncWorker.ImportFromDrive(googleID, token); err != nil {
+				log.Printf("[AUTH] Failed to import from Drive for user %s: %v", googleID, err)
+			} else {
+				log.Printf("[AUTH] Successfully imported data from Drive for user %s", googleID)
+			}
+		}()
+	}
+
+	// Cleanup old deleted folders (older than 10 days) in background
 	if token.AccessToken != "" {
 		driveService, err := drive.NewService(context.Background(), token, googleID)
 		if err == nil {
-			firstLogin, err := driveService.IsFirstLogin()
-			if err == nil {
-				isFirstLogin = firstLogin
-				log.Printf("[AUTH] IsFirstLogin check completed for user %s: %v", googleID, isFirstLogin)
-			} else {
-				log.Printf("[AUTH] Failed to check first login status for user %s: %v", googleID, err)
-			}
-
-			// Cleanup old deleted folders (older than 10 days) in background
 			go func() {
 				if err := driveService.CleanupOldDeletedFolders(); err != nil {
 					log.Printf("[AUTH] Failed to cleanup old deleted folders for user %s: %v", googleID, err)
@@ -249,25 +260,7 @@ func Login(c *fiber.Ctx) error {
 					log.Printf("[AUTH] Successfully cleaned up old deleted folders for user %s", googleID)
 				}
 			}()
-		} else {
-			log.Printf("[AUTH] Failed to create drive service for user %s: %v", googleID, err)
 		}
-	} else {
-		log.Printf("[AUTH] No access token available for user %s, cannot check first login", googleID)
-	}
-
-	// Check if this is first login (no data in local DB)
-	contexts, err := repo.GetContexts(googleID)
-	if err == nil && len(contexts) == 0 && syncWorker != nil {
-		// Import data from Drive in background
-		go func() {
-			log.Printf("First login detected for user %s, importing from Drive...", googleID)
-			if err := syncWorker.ImportFromDrive(googleID, token); err != nil {
-				log.Printf("Failed to import from Drive: %v", err)
-			} else {
-				log.Printf("Successfully imported data from Drive for user %s", googleID)
-			}
-		}()
 	}
 
 	response := fiber.Map{
@@ -278,11 +271,11 @@ func Login(c *fiber.Ctx) error {
 			"name":         sess.Name,
 			"picture":      sess.Picture,
 			"settings":     sess.Settings,
-			"isFirstLogin": isFirstLogin,
+			"hasNoContexts": hasNoContexts,
 		},
 	}
 
-	log.Printf("[AUTH] Login response for user %s: isFirstLogin=%v", googleID, isFirstLogin)
+	log.Printf("[AUTH] Login response for user %s: hasNoContexts=%v", googleID, hasNoContexts)
 	return c.JSON(response)
 }
 
