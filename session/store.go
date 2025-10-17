@@ -181,6 +181,22 @@ func Update(sessionID string, session *models.Session) error {
 	return err
 }
 
+// UpdateUserToken updates just the OAuth tokens for a specific user
+func UpdateUserToken(userID string, accessToken, refreshToken string, tokenExpiry time.Time) error {
+	_, err := db.Exec(`
+		UPDATE sessions SET
+			access_token = ?,
+			refresh_token = ?,
+			token_expiry = ?,
+			last_used_at = ?
+		WHERE user_id = ?
+	`,
+		accessToken, refreshToken, tokenExpiry, time.Now(), userID,
+	)
+
+	return err
+}
+
 func Delete(sessionID string) error {
 	_, err := db.Exec("DELETE FROM sessions WHERE id = ?", sessionID)
 	return err

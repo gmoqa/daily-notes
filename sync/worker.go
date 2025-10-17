@@ -4,6 +4,7 @@ import (
 	"context"
 	"daily-notes/database"
 	"daily-notes/drive"
+	"daily-notes/session"
 	"log"
 	"sync"
 	"time"
@@ -151,6 +152,18 @@ func (w *Worker) syncUserNotes(userID string, notes []database.NoteWithMeta) {
 	if syncedCount > 0 {
 		log.Printf("[Sync Worker] Successfully synced %d/%d notes for user %s", syncedCount, len(notes), userID)
 	}
+
+	// Update the token in the session if it was refreshed
+	currentToken, err := driveService.GetCurrentToken()
+	if err == nil && currentToken != nil {
+		// Only update if the token actually changed
+		if currentToken.AccessToken != token.AccessToken || !currentToken.Expiry.Equal(token.Expiry) {
+			log.Printf("[Sync Worker] Token was refreshed for user %s, updating session", userID)
+			if err := session.UpdateUserToken(userID, currentToken.AccessToken, currentToken.RefreshToken, currentToken.Expiry); err != nil {
+				log.Printf("[Sync Worker] Failed to update token in session: %v", err)
+			}
+		}
+	}
 }
 
 func (w *Worker) syncNote(driveService *drive.Service, note *database.NoteWithMeta) error {
@@ -212,6 +225,18 @@ func (w *Worker) ImportFromDrive(userID string, token *oauth2.Token) error {
 				log.Printf("[Sync Worker] Failed to import note %s: %v", note.ID, err)
 			} else {
 				totalNotes++
+			}
+		}
+	}
+
+	// Update the token in the session if it was refreshed
+	currentToken, err := driveService.GetCurrentToken()
+	if err == nil && currentToken != nil {
+		// Only update if the token actually changed
+		if currentToken.AccessToken != token.AccessToken || !currentToken.Expiry.Equal(token.Expiry) {
+			log.Printf("[Sync Worker] Token was refreshed during import for user %s, updating session", userID)
+			if err := session.UpdateUserToken(userID, currentToken.AccessToken, currentToken.RefreshToken, currentToken.Expiry); err != nil {
+				log.Printf("[Sync Worker] Failed to update token in session: %v", err)
 			}
 		}
 	}
