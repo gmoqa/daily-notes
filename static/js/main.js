@@ -440,57 +440,149 @@ class Application {
             }
         };
 
-        window.updateContextFromSettings = async (contextId) => {
-            const nameInput = document.querySelector(`input[data-context-id="${contextId}"][data-field="name"]`);
-            const colorInput = document.querySelector(`input[type="hidden"][data-context-id="${contextId}"][data-field="color"]`);
-            
-            if (!nameInput || !colorInput) return;
-            
-            const name = nameInput.value.trim();
-            const color = colorInput.value;
-            
-            if (!name) {
-                events.emit(EVENT.SHOW_ERROR, 'Context name cannot be empty');
-                return;
-            }
-            
-            const success = await contexts.updateContext(contextId, name, color);
-            if (success) {
-                // Refresh the contexts list in the modal
-                ui.renderContextsEditList();
-                // Refresh the contexts selectors
-                ui.renderContextsSelect();
+        // Edit context modal handlers
+        window.showEditContextModal = (contextId) => {
+            const contextsList = state.get('contexts');
+            const context = contextsList.find(c => c.id === contextId);
+            if (!context) return;
+
+            const modal = document.getElementById('edit-context-modal');
+            const nameInput = document.getElementById('edit-context-name');
+            const colorValue = document.getElementById('edit-context-color-value');
+            const colorsContainer = document.getElementById('edit-context-colors');
+
+            if (!modal || !nameInput || !colorValue || !colorsContainer) return;
+
+            // Set values
+            nameInput.value = context.name;
+            const normalizedColor = ui.normalizeToBulmaColor(context.color);
+            colorValue.value = normalizedColor;
+
+            // Render color buttons
+            const colors = ['text', 'link', 'primary', 'info', 'success', 'warning', 'danger'];
+            colorsContainer.innerHTML = colors.map(color => {
+                const isActive = normalizedColor === color;
+                const borderStyle = isActive ? 'border: 3px solid var(--bulma-text)' : 'border: 3px solid transparent';
+                return `
+                    <button type="button" class="button color-btn ${isActive ? 'is-active' : ''}"
+                            data-color="${color}"
+                            onclick="window.selectEditContextColor('${color}')"
+                            title="${ui.getColorLabel(color)}"
+                            style="width: 32px; height: 32px; padding: 3px; ${borderStyle}; border-radius: 6px;">
+                        <span style="display: block; width: 100%; height: 100%; background: var(--bulma-${color}); border-radius: 4px;"></span>
+                    </button>
+                `;
+            }).join('');
+
+            // Store context ID and show modal
+            modal.dataset.contextId = contextId;
+            modal.classList.add('is-active');
+        };
+
+        window.selectEditContextColor = (color) => {
+            const colorValue = document.getElementById('edit-context-color-value');
+            if (!colorValue) return;
+
+            colorValue.value = color;
+
+            // Update button states
+            const buttons = document.querySelectorAll('#edit-context-colors .color-btn');
+            buttons.forEach(btn => {
+                const btnColor = btn.dataset.color;
+                if (btnColor === color) {
+                    btn.classList.add('is-active');
+                    btn.style.border = '3px solid var(--bulma-text)';
+                } else {
+                    btn.classList.remove('is-active');
+                    btn.style.border = '3px solid transparent';
+                }
+            });
+        };
+
+        window.closeEditContextModal = () => {
+            const modal = document.getElementById('edit-context-modal');
+            if (modal) {
+                modal.classList.remove('is-active');
+                delete modal.dataset.contextId;
             }
         };
 
-        window.toggleContextsAccordion = () => {
-            const content = document.getElementById('contexts-accordion-content');
-            const icon = document.getElementById('contexts-accordion-icon');
-            
-            if (!content || !icon) return;
-            
-            // Check if expanded by looking at the display property
-            const isExpanded = content.style.display === 'block';
-            
-            const iconElement = icon.querySelector('.material-symbols-outlined');
-            if (!iconElement) return;
-            
-            if (isExpanded) {
-                // Collapse with smooth transition
-                content.style.opacity = '0';
-                setTimeout(() => {
-                    content.style.display = 'none';
-                    content.style.opacity = '1';
-                }, 150);
-                iconElement.textContent = 'expand_more';
-            } else {
-                // Expand with smooth transition
-                content.style.display = 'block';
-                content.style.opacity = '0';
-                setTimeout(() => {
-                    content.style.opacity = '1';
-                }, 10);
-                iconElement.textContent = 'expand_less';
+        window.confirmEditContext = async () => {
+            const modal = document.getElementById('edit-context-modal');
+            if (!modal) return;
+
+            const contextId = modal.dataset.contextId;
+            const nameInput = document.getElementById('edit-context-name');
+            const colorValue = document.getElementById('edit-context-color-value');
+
+            if (!contextId || !nameInput || !colorValue) return;
+
+            const name = nameInput.value.trim();
+            const color = colorValue.value;
+
+            if (!name) {
+                alert('Please enter a context name');
+                return;
+            }
+
+            // Close modal
+            window.closeEditContextModal();
+
+            // Update context
+            await contexts.updateContext(contextId, name, color);
+
+            // Refresh UI
+            ui.renderContextsEditList();
+            ui.renderContextsSelect();
+        };
+
+        window.showDeleteContextModal = (contextId, contextName) => {
+            const modal = document.getElementById('delete-context-modal');
+            const nameElement = document.getElementById('delete-context-name');
+
+            if (modal && nameElement) {
+                nameElement.textContent = contextName;
+                modal.dataset.contextId = contextId;
+                modal.classList.add('is-active');
+            }
+        };
+
+        window.closeDeleteContextModal = () => {
+            const modal = document.getElementById('delete-context-modal');
+            if (modal) {
+                modal.classList.remove('is-active');
+                delete modal.dataset.contextId;
+            }
+        };
+
+        window.confirmDeleteContext = async () => {
+            const modal = document.getElementById('delete-context-modal');
+            if (!modal) return;
+
+            const contextId = modal.dataset.contextId;
+
+            if (contextId) {
+                // Close modal first
+                window.closeDeleteContextModal();
+
+                // Delete context (will also delete all its notes)
+                await contexts.deleteContext(contextId);
+
+                // Refresh UI
+                ui.renderContextsEditList();
+                ui.renderContextsSelect();
+
+                // If the deleted context was selected, clear selection
+                const selectedContext = contexts.getSelectedContext();
+                const deletedContext = state.get('contexts').find(c => c.id === contextId);
+                if (deletedContext && selectedContext === deletedContext.name) {
+                    const remainingContexts = state.get('contexts');
+                    if (remainingContexts.length > 0) {
+                        contexts.selectContext(remainingContexts[0].name);
+                    } else {
+                        contexts.selectContext(null);
+                    }
+                }
             }
         };
 
