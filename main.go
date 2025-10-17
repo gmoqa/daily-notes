@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"daily-notes/app"
 	"daily-notes/config"
 	"daily-notes/database"
 	"daily-notes/handlers"
@@ -44,24 +45,39 @@ func main() {
 
 	// Create repository
 	repo := database.NewRepository(db)
-	handlers.SetRepository(repo)
 
 	// Initialize session store with database
-	session.Initialize(db.DB)
+	sessionStore := session.NewStore(db.DB)
 	logger.Info("session store initialized with database")
 
 	// Start session cleanup
-	session.StartCleanupRoutine()
+	sessionStore.StartCleanupRoutine()
 	logger.Info("session cleanup routine started")
 
+	// Create getUserToken function that uses sessionStore
+	getUserToken := func(userID string) (*oauth2.Token, error) {
+		sess := sessionStore.GetByUserID(userID)
+		if sess == nil {
+			return nil, fiber.ErrUnauthorized
+		}
+		return &oauth2.Token{
+			AccessToken:  sess.AccessToken,
+			RefreshToken: sess.RefreshToken,
+			Expiry:       sess.TokenExpiry,
+		}, nil
+	}
+
 	// Start sync worker for background Drive sync
-	syncWorker := sync.NewWorker(repo, getUserToken)
+	syncWorker := sync.NewWorker(repo, sessionStore, getUserToken)
 	syncWorker.Start()
-	handlers.SetSyncWorker(syncWorker)
 	logger.Info("sync worker started")
 
+	// Create App with all dependencies injected
+	application := app.New(repo, syncWorker, sessionStore, logger)
+	logger.Info("application initialized with dependency injection")
+
 	// Templ doesn't need a template engine - it renders directly
-	app := fiber.New(fiber.Config{
+	fiberApp := fiber.New(fiber.Config{
 		ReadTimeout:           time.Second * 10,
 		WriteTimeout:          time.Second * 10,
 		IdleTimeout:           time.Second * 30,
@@ -70,7 +86,7 @@ func main() {
 		ReadBufferSize:        8192,
 	})
 
-	app.Use(
+	fiberApp.Use(
 		recover.New(),
 		middleware.StructuredLogger(logger),
 		middleware.Security(),
@@ -96,24 +112,24 @@ func main() {
 	)
 
 	// Static assets with aggressive caching
-	app.Static("/static", "./static", fiber.Static{
+	fiberApp.Static("/static", "./static", fiber.Static{
 		Compress:      true,
 		CacheDuration: 365 * 24 * time.Hour, // 1 year for versioned assets
 		MaxAge:        31536000,             // 1 year in seconds
 	})
-	app.Get("/robots.txt", func(c *fiber.Ctx) error {
+	fiberApp.Get("/robots.txt", func(c *fiber.Ctx) error {
 		return c.SendFile("./static/robots.txt")
 	})
 
-	app.Get("/", handlers.HomePage)
-	app.Get("/health", func(c *fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
-	app.Get("/api/time", handlers.ServerTime)
+	fiberApp.Get("/", handlers.HomePage)
+	fiberApp.Get("/health", func(c *fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
+	fiberApp.Get("/api/time", handlers.ServerTime)
 
-	app.Post("/api/auth/login", handlers.Login)
-	app.Post("/api/auth/logout", handlers.Logout)
-	app.Get("/api/auth/me", handlers.Me)
+	fiberApp.Post("/api/auth/login", handlers.Login(application))
+	fiberApp.Post("/api/auth/logout", handlers.Logout(application))
+	fiberApp.Get("/api/auth/me", handlers.Me(application))
 
-	api := app.Group("/api", middleware.AuthRequired(), limiter.New(limiter.Config{
+	api := fiberApp.Group("/api", middleware.AuthRequired(sessionStore), limiter.New(limiter.Config{
 		Max:        100,
 		Expiration: time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
@@ -128,21 +144,21 @@ func main() {
 			})
 		},
 	}))
-	api.Get("/contexts", handlers.GetContexts)
-	api.Post("/contexts", handlers.CreateContext)
-	api.Put("/contexts/:id", handlers.UpdateContext)
-	api.Delete("/contexts/:id", handlers.DeleteContext)
-	api.Get("/notes", handlers.GetNote)
-	api.Post("/notes", handlers.UpsertNote)
-	api.Get("/notes/list", handlers.GetNotesByContext)
-	api.Delete("/notes/:context/:date", handlers.DeleteNote)
-	api.Put("/settings", handlers.UpdateSettings)
-	api.Post("/sync/drive", handlers.SyncFromDrive)
+	api.Get("/contexts", handlers.GetContexts(application))
+	api.Post("/contexts", handlers.CreateContext(application))
+	api.Put("/contexts/:id", handlers.UpdateContext(application))
+	api.Delete("/contexts/:id", handlers.DeleteContext(application))
+	api.Get("/notes", handlers.GetNote(application))
+	api.Post("/notes", handlers.UpsertNote(application))
+	api.Get("/notes/list", handlers.GetNotesByContext(application))
+	api.Delete("/notes/:context/:date", handlers.DeleteNote(application))
+	api.Put("/settings", handlers.UpdateSettings(application))
+	api.Post("/sync/drive", handlers.SyncFromDrive(application))
 
 	logger.Info("starting server", "port", config.AppConfig.Port, "env", config.AppConfig.Env)
 
 	go func() {
-		if err := app.Listen(":" + config.AppConfig.Port); err != nil {
+		if err := fiberApp.Listen(":" + config.AppConfig.Port); err != nil {
 			logger.Error("server failed", "error", err)
 			os.Exit(1)
 		}
@@ -161,26 +177,11 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := app.ShutdownWithContext(ctx); err != nil {
+	if err := fiberApp.ShutdownWithContext(ctx); err != nil {
 		logger.Error("server forced to shutdown", "error", err)
 	}
 
 	logger.Info("server stopped")
-}
-
-// getUserToken retrieves the OAuth token for a user from their session
-func getUserToken(userID string) (*oauth2.Token, error) {
-	// Find session by userID
-	sess := session.GetByUserID(userID)
-	if sess == nil {
-		return nil, fiber.ErrUnauthorized
-	}
-
-	return &oauth2.Token{
-		AccessToken:  sess.AccessToken,
-		RefreshToken: sess.RefreshToken,
-		Expiry:       sess.TokenExpiry,
-	}, nil
 }
 
 func setupLogger() *slog.Logger {

@@ -2,11 +2,10 @@ package handlers
 
 import (
 	"context"
+	"daily-notes/app"
 	"daily-notes/config"
 	"daily-notes/drive"
 	"daily-notes/models"
-	"daily-notes/session"
-	"daily-notes/sync"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -17,13 +16,9 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-var syncWorker *sync.Worker
-
-func SetSyncWorker(w *sync.Worker) {
-	syncWorker = w
-}
-
-func Login(c *fiber.Ctx) error {
+// Login handles user authentication via Google OAuth
+func Login(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	var req models.LoginRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -191,7 +186,7 @@ func Login(c *fiber.Ctx) error {
 		LastLoginAt: time.Now(),
 	}
 
-	if err := repo.UpsertUser(user); err != nil {
+	if err := a.Repo.UpsertUser(user); err != nil {
 		log.Printf("Failed to save user to database: %v", err)
 		return &fiber.Error{
 			Code:    fiber.StatusInternalServerError,
@@ -199,7 +194,7 @@ func Login(c *fiber.Ctx) error {
 		}
 	}
 
-	sess, err := session.Create(
+	sess, err := a.SessionStore.Create(
 		googleID,
 		email,
 		name,
@@ -231,17 +226,17 @@ func Login(c *fiber.Ctx) error {
 	// Check if this is first login by checking if user has any contexts
 	// This is more reliable than checking Drive folder as the folder might exist
 	// but the user might have deleted all contexts
-	contexts, err := repo.GetContexts(googleID)
+	contexts, err := a.Repo.GetContexts(googleID)
 	hasNoContexts := err == nil && len(contexts) == 0
 
 	log.Printf("[AUTH] User %s has %d contexts (hasNoContexts=%v)", googleID, len(contexts), hasNoContexts)
 
 	// If user has no contexts, try to import from Drive
-	if hasNoContexts && syncWorker != nil && token.AccessToken != "" {
+	if hasNoContexts && a.SyncWorker != nil && token.AccessToken != "" {
 		// Import data from Drive in background
 		go func() {
 			log.Printf("[AUTH] User %s has no contexts, importing from Drive...", googleID)
-			if err := syncWorker.ImportFromDrive(googleID, token); err != nil {
+			if err := a.SyncWorker.ImportFromDrive(googleID, token); err != nil {
 				log.Printf("[AUTH] Failed to import from Drive for user %s: %v", googleID, err)
 			} else {
 				log.Printf("[AUTH] Successfully imported data from Drive for user %s", googleID)
@@ -277,12 +272,15 @@ func Login(c *fiber.Ctx) error {
 
 	log.Printf("[AUTH] Login response for user %s: hasNoContexts=%v", googleID, hasNoContexts)
 	return c.JSON(response)
+	}
 }
 
-func Logout(c *fiber.Ctx) error {
+// Logout handles user logout
+func Logout(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	sessionID := c.Cookies("session_id")
 	if sessionID != "" {
-		session.Delete(sessionID)
+		a.SessionStore.Delete(sessionID)
 	}
 
 	c.ClearCookie("session_id")
@@ -290,9 +288,12 @@ func Logout(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 	})
+	}
 }
 
-func Me(c *fiber.Ctx) error {
+// Me returns the current user's session information
+func Me(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	sessionID := c.Cookies("session_id")
 	if sessionID == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -300,7 +301,7 @@ func Me(c *fiber.Ctx) error {
 		})
 	}
 
-	sess, err := session.Get(sessionID)
+	sess, err := a.SessionStore.Get(sessionID)
 	if err != nil || sess == nil {
 		c.ClearCookie("session_id")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -309,7 +310,7 @@ func Me(c *fiber.Ctx) error {
 	}
 
 	sess.LastUsedAt = time.Now()
-	session.Update(sessionID, sess)
+	a.SessionStore.Update(sessionID, sess)
 
 	return c.JSON(fiber.Map{
 		"authenticated": true,
@@ -321,9 +322,12 @@ func Me(c *fiber.Ctx) error {
 			"settings": sess.Settings,
 		},
 	})
+	}
 }
 
-func UpdateSettings(c *fiber.Ctx) error {
+// UpdateSettings updates user settings
+func UpdateSettings(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	var req models.UpdateSettingsRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -332,7 +336,7 @@ func UpdateSettings(c *fiber.Ctx) error {
 	}
 
 	sessionID := c.Cookies("session_id")
-	sess, err := session.Get(sessionID)
+	sess, err := a.SessionStore.Get(sessionID)
 	if err != nil || sess == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Unauthorized",
@@ -351,7 +355,7 @@ func UpdateSettings(c *fiber.Ctx) error {
 	}
 
 	// Update in local database
-	if err := repo.UpdateUserSettings(sess.UserID, settings); err != nil {
+	if err := a.Repo.UpdateUserSettings(sess.UserID, settings); err != nil {
 		log.Printf("Failed to update settings in database: %v", err)
 	}
 
@@ -372,21 +376,24 @@ func UpdateSettings(c *fiber.Ctx) error {
 	}
 
 	sess.Settings = settings
-	session.Update(sessionID, sess)
+	a.SessionStore.Update(sessionID, sess)
 
 	return c.JSON(fiber.Map{"success": true})
+	}
 }
 
-func SyncFromDrive(c *fiber.Ctx) error {
+// SyncFromDrive manually triggers a sync from Google Drive
+func SyncFromDrive(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	sessionID := c.Cookies("session_id")
-	sess, err := session.Get(sessionID)
+	sess, err := a.SessionStore.Get(sessionID)
 	if err != nil || sess == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Unauthorized",
 		})
 	}
 
-	if syncWorker == nil {
+	if a.SyncWorker == nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Sync worker not available",
 		})
@@ -401,7 +408,7 @@ func SyncFromDrive(c *fiber.Ctx) error {
 	// Import data from Drive
 	go func() {
 		log.Printf("Manual sync triggered for user %s", sess.UserID)
-		if err := syncWorker.ImportFromDrive(sess.UserID, token); err != nil {
+		if err := a.SyncWorker.ImportFromDrive(sess.UserID, token); err != nil {
 			log.Printf("Failed to import from Drive: %v", err)
 		} else {
 			log.Printf("Successfully imported data from Drive for user %s", sess.UserID)
@@ -412,4 +419,5 @@ func SyncFromDrive(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Sync started in background",
 	})
+	}
 }

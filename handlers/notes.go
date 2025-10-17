@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"daily-notes/database"
+	"daily-notes/app"
 	"daily-notes/drive"
 	"daily-notes/middleware"
 	"daily-notes/models"
@@ -11,12 +11,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/oauth2"
 )
-
-var repo *database.Repository
-
-func SetRepository(r *database.Repository) {
-	repo = r
-}
 
 func getDriveService(c *fiber.Ctx) (*drive.Service, error) {
 	sess, ok := c.Locals("session").(*models.Session)
@@ -40,7 +34,9 @@ func getDriveService(c *fiber.Ctx) (*drive.Service, error) {
 	return drive.NewService(context.Background(), token, sess.UserID)
 }
 
-func GetNote(c *fiber.Ctx) error {
+// GetNote retrieves a note for a specific context and date
+func GetNote(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	contextName, date := c.Query("context"), c.Query("date")
 	if contextName == "" || date == "" {
 		return badRequest(c, "context and date are required")
@@ -49,7 +45,7 @@ func GetNote(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 
 	// Try local database first (fast path)
-	note, err := repo.GetNote(userID, contextName, date)
+	note, err := a.Repo.GetNote(userID, contextName, date)
 	if err != nil {
 		return serverErrorWithDetails(c, "Failed to fetch note from database", err)
 	}
@@ -65,9 +61,12 @@ func GetNote(c *fiber.Ctx) error {
 	}
 
 	return success(c, fiber.Map{"note": note})
+	}
 }
 
-func UpsertNote(c *fiber.Ctx) error {
+// UpsertNote creates or updates a note
+func UpsertNote(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	var req models.CreateNoteRequest
 	if err := c.BodyParser(&req); err != nil {
 		return badRequest(c, "Invalid request body")
@@ -89,14 +88,17 @@ func UpsertNote(c *fiber.Ctx) error {
 	}
 
 	// Mark for sync with Drive (sync_pending = true)
-	if err := repo.UpsertNote(note, true); err != nil {
+	if err := a.Repo.UpsertNote(note, true); err != nil {
 		return serverErrorWithDetails(c, "Failed to save note", err)
 	}
 
 	return success(c, fiber.Map{"note": note})
+	}
 }
 
-func GetNotesByContext(c *fiber.Ctx) error {
+// GetNotesByContext retrieves all notes for a specific context
+func GetNotesByContext(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	contextName := c.Query("context")
 	if contextName == "" {
 		return badRequest(c, "context is required")
@@ -115,7 +117,7 @@ func GetNotesByContext(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 
 	// Get from local database (instant)
-	notes, err := repo.GetNotesByContext(userID, contextName, limit, offset)
+	notes, err := a.Repo.GetNotesByContext(userID, contextName, limit, offset)
 	if err != nil {
 		return serverErrorWithDetails(c, "Failed to fetch notes", err)
 	}
@@ -125,9 +127,12 @@ func GetNotesByContext(c *fiber.Ctx) error {
 		"limit":  limit,
 		"offset": offset,
 	})
+	}
 }
 
-func DeleteNote(c *fiber.Ctx) error {
+// DeleteNote marks a note as deleted
+func DeleteNote(a *app.App) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 	contextName := c.Params("context")
 	date := c.Params("date")
 
@@ -138,11 +143,12 @@ func DeleteNote(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 
 	// Mark note as deleted (will be synced by background worker)
-	if err := repo.DeleteNote(userID, contextName, date); err != nil {
+	if err := a.Repo.DeleteNote(userID, contextName, date); err != nil {
 		return serverErrorWithDetails(c, "Failed to delete note", err)
 	}
 
 	return success(c, fiber.Map{
 		"message": "Note deleted successfully",
 	})
+	}
 }
