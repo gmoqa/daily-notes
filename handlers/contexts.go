@@ -4,202 +4,119 @@ import (
 	"daily-notes/app"
 	"daily-notes/middleware"
 	"daily-notes/models"
-	"strings"
-	"time"
+	"daily-notes/services"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
+	"golang.org/x/oauth2"
 )
+
+// getToken extracts OAuth token from session
+func getToken(c *fiber.Ctx) *oauth2.Token {
+	sess, ok := c.Locals("session").(*models.Session)
+	if !ok || sess == nil || sess.AccessToken == "" {
+		return nil
+	}
+
+	return &oauth2.Token{
+		AccessToken:  sess.AccessToken,
+		RefreshToken: sess.RefreshToken,
+		Expiry:       sess.TokenExpiry,
+	}
+}
 
 // GetContexts retrieves all contexts for a user
 func GetContexts(a *app.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-	userID := middleware.GetUserID(c)
+		userID := middleware.GetUserID(c)
 
-	// Get from local database (instant)
-	contexts, err := a.Repo.GetContexts(userID)
-	if err != nil {
-		return serverErrorWithDetails(c, "Failed to fetch contexts", err)
-	}
+		contexts, err := a.ContextService.List(userID)
+		if err != nil {
+			return serverErrorWithDetails(c, "Failed to fetch contexts", err)
+		}
 
-	return success(c, fiber.Map{"contexts": contexts})
+		return success(c, fiber.Map{"contexts": contexts})
 	}
 }
 
 // CreateContext creates a new context for a user
 func CreateContext(a *app.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-	var req models.CreateContextRequest
-	if err := c.BodyParser(&req); err != nil {
-		return badRequest(c, "Invalid request body")
-	}
+		var req models.CreateContextRequest
+		if err := c.BodyParser(&req); err != nil {
+			return badRequest(c, "Invalid request body")
+		}
 
-	// Trim whitespace
-	req.Name = strings.TrimSpace(req.Name)
+		// Validate request
+		if err := a.Validator.Validate(&req); err != nil {
+			return validationError(c, err)
+		}
 
-	// Set default color if not provided
-	if req.Color == "" {
-		req.Color = "primary"
-	}
+		userID := middleware.GetUserID(c)
 
-	// Validate request
-	if err := a.Validator.Validate(&req); err != nil {
-		return validationError(c, err)
-	}
+		ctx, err := a.ContextService.Create(userID, req.Name, req.Color)
+		if err != nil {
+			if err == services.ErrContextAlreadyExists {
+				return badRequest(c, "Context with this name already exists")
+			}
+			return serverErrorWithDetails(c, "Failed to create context", err)
+		}
 
-	userID := middleware.GetUserID(c)
-
-	// Check if context already exists
-	existing, err := a.Repo.GetContextByName(userID, req.Name)
-	if err != nil {
-		return serverErrorWithDetails(c, "Failed to check existing context", err)
-	}
-	if existing != nil {
-		return badRequest(c, "Context with this name already exists")
-	}
-
-	// Create in local database immediately
-	context := &models.Context{
-		ID:        uuid.New().String(),
-		UserID:    userID,
-		Name:      req.Name,
-		Color:     req.Color,
-		CreatedAt: time.Now(),
-	}
-
-	if err := a.Repo.CreateContext(context); err != nil {
-		return serverErrorWithDetails(c, "Failed to create context", err)
-	}
-
-	// Context will be synced to Drive by the background worker when notes are created
-	return created(c, fiber.Map{"context": context})
+		return created(c, fiber.Map{"context": ctx})
 	}
 }
 
 // UpdateContext updates an existing context
 func UpdateContext(a *app.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-	contextID := c.Params("id")
-	if contextID == "" {
-		return badRequest(c, "context ID is required")
-	}
-
-	var req models.UpdateContextRequest
-	if err := c.BodyParser(&req); err != nil {
-		return badRequest(c, "Invalid request body")
-	}
-
-	// Trim whitespace
-	req.Name = strings.TrimSpace(req.Name)
-
-	// Set default color if not provided
-	if req.Color == "" {
-		req.Color = "primary"
-	}
-
-	// Validate request
-	if err := a.Validator.Validate(&req); err != nil {
-		return validationError(c, err)
-	}
-
-	// Get the old context to check if name is changing
-	oldContext, err := a.Repo.GetContextByID(contextID)
-	if err != nil {
-		return serverErrorWithDetails(c, "Failed to fetch context", err)
-	}
-	if oldContext == nil {
-		return badRequest(c, "Context not found")
-	}
-
-	userID := middleware.GetUserID(c)
-
-	// If name changed, we need to update all notes that use this context
-	nameChanged := oldContext.Name != req.Name
-
-	// Update context in local database
-	if err := a.Repo.UpdateContext(contextID, req.Name, req.Color); err != nil {
-		return serverErrorWithDetails(c, "Failed to update context", err)
-	}
-
-	// If name changed, update all notes with the new context name
-	if nameChanged {
-		if err := a.Repo.UpdateNotesContextName(oldContext.Name, req.Name, userID); err != nil {
-			return serverErrorWithDetails(c, "Failed to update notes with new context name", err)
+		contextID := c.Params("id")
+		if contextID == "" {
+			return badRequest(c, "context ID is required")
 		}
 
-		// Also rename folder in Google Drive
-		driveService, err := getDriveService(c)
-		if err != nil {
-			// Log error but don't fail the request since local DB was updated
-			// User can manually rename the folder or it will be created on next sync
-			c.Append("X-Warning", "Context updated locally but Drive sync failed. Please check your Google Drive connection.")
-		} else {
-			if err := driveService.RenameContext(contextID, oldContext.Name, req.Name); err != nil {
-				// Log error but don't fail the request
-				c.Append("X-Warning", "Context updated locally but Drive folder rename failed. You may need to manually rename the folder in Google Drive.")
+		var req models.UpdateContextRequest
+		if err := c.BodyParser(&req); err != nil {
+			return badRequest(c, "Invalid request body")
+		}
+
+		// Validate request
+		if err := a.Validator.Validate(&req); err != nil {
+			return validationError(c, err)
+		}
+
+		userID := middleware.GetUserID(c)
+		token := getToken(c)
+
+		if err := a.ContextService.Update(contextID, req.Name, req.Color, userID, token); err != nil {
+			if err == services.ErrContextNotFound {
+				return badRequest(c, "Context not found")
 			}
+			return serverErrorWithDetails(c, "Failed to update context", err)
 		}
-	}
 
-	return success(c, fiber.Map{"message": "Context updated successfully"})
+		return success(c, fiber.Map{"message": "Context updated successfully"})
 	}
 }
 
 // DeleteContext deletes a context and its notes
 func DeleteContext(a *app.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-	contextID := c.Params("id")
-	if contextID == "" {
-		return badRequest(c, "context ID is required")
-	}
-
-	userID := middleware.GetUserID(c)
-
-	// Get the context to retrieve its name
-	context, err := a.Repo.GetContextByID(contextID)
-	if err != nil {
-		return serverErrorWithDetails(c, "Failed to fetch context", err)
-	}
-	if context == nil {
-		return badRequest(c, "Context not found")
-	}
-
-	// Get all notes for this context and mark them as deleted
-	// This will trigger the sync worker to delete them from Drive
-	notes, err := a.Repo.GetNotesByContext(userID, context.Name, 1000, 0)
-	if err != nil {
-		return serverErrorWithDetails(c, "Failed to fetch notes", err)
-	}
-
-	// Mark all notes in this context as deleted (soft delete with sync pending)
-	for _, note := range notes {
-		if err := a.Repo.DeleteNote(userID, context.Name, note.Date); err != nil {
-			// Log but continue
-			c.Append("X-Warning", "Some notes failed to be marked for deletion")
-		}
-	}
-
-	// Delete from local database
-	if err := a.Repo.DeleteContext(contextID); err != nil {
-		return serverErrorWithDetails(c, "Failed to delete context", err)
-	}
-
-	// Move folder to _DELETED in Google Drive (async)
-	go func() {
-		driveService, err := getDriveService(c)
-		if err != nil {
-			// Can't get drive service, skip Drive sync
-			return
+		contextID := c.Params("id")
+		if contextID == "" {
+			return badRequest(c, "context ID is required")
 		}
 
-		if err := driveService.DeleteContext(contextID, context.Name); err != nil {
-			// Log error but context is already deleted locally
-			// The sync worker will handle note deletions
-		}
-	}()
+		userID := middleware.GetUserID(c)
+		token := getToken(c)
 
-	return success(c, fiber.Map{
-		"message": "Context deleted successfully. All notes have been moved to _DELETED folder in Google Drive.",
-	})
+		if err := a.ContextService.Delete(contextID, userID, token); err != nil {
+			if err == services.ErrContextNotFound {
+				return badRequest(c, "Context not found")
+			}
+			return serverErrorWithDetails(c, "Failed to delete context", err)
+		}
+
+		return success(c, fiber.Map{
+			"message": "Context deleted successfully. All notes have been moved to _DELETED folder in Google Drive.",
+		})
 	}
 }

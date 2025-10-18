@@ -188,13 +188,21 @@ func (r *Repository) GetContextByID(contextID string) (*models.Context, error) {
 
 func (r *Repository) GetNote(userID, context, date string) (*models.Note, error) {
 	var note models.Note
+	var syncStatus string
+	var syncLastAttemptAt sql.NullTime
+	var syncError sql.NullString
+
 	err := r.db.QueryRow(`
-		SELECT id, user_id, context, date, content, drive_file_id, created_at, updated_at
+		SELECT id, user_id, context, date, content, drive_file_id,
+		       sync_status, sync_retry_count, sync_last_attempt_at, sync_error,
+		       created_at, updated_at
 		FROM notes
 		WHERE user_id = ? AND context = ? AND date = ? AND deleted = 0
 	`, userID, context, date).Scan(
 		&note.ID, &note.UserID, &note.Context, &note.Date,
-		&note.Content, &note.ID, &note.CreatedAt, &note.UpdatedAt,
+		&note.Content, &note.ID,
+		&syncStatus, &note.SyncRetryCount, &syncLastAttemptAt, &syncError,
+		&note.CreatedAt, &note.UpdatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -204,13 +212,23 @@ func (r *Repository) GetNote(userID, context, date string) (*models.Note, error)
 		return nil, err
 	}
 
+	note.SyncStatus = models.SyncStatus(syncStatus)
+	if syncLastAttemptAt.Valid {
+		note.SyncLastAttemptAt = &syncLastAttemptAt.Time
+	}
+	if syncError.Valid {
+		note.SyncError = syncError.String
+	}
+
 	return &note, nil
 }
 
 func (r *Repository) UpsertNote(note *models.Note, markForSync bool) error {
 	syncPending := 0
+	syncStatus := string(models.SyncStatusSynced)
 	if markForSync {
 		syncPending = 1
+		syncStatus = string(models.SyncStatusPending)
 	}
 
 	id := fmt.Sprintf("%s-%s-%s", note.UserID, note.Context, note.Date)
@@ -220,15 +238,18 @@ func (r *Repository) UpsertNote(note *models.Note, markForSync bool) error {
 
 	_, err := r.db.Exec(`
 		INSERT INTO notes (id, user_id, context, date, content, drive_file_id,
-			sync_pending, deleted, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+			sync_pending, sync_status, sync_retry_count, deleted, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
 		ON CONFLICT(user_id, context, date) DO UPDATE SET
 			content = CASE WHEN notes.deleted = 0 THEN excluded.content ELSE notes.content END,
 			sync_pending = CASE WHEN notes.deleted = 0 THEN excluded.sync_pending ELSE notes.sync_pending END,
+			sync_status = CASE WHEN notes.deleted = 0 THEN excluded.sync_status ELSE notes.sync_status END,
+			sync_retry_count = CASE WHEN notes.deleted = 0 THEN 0 ELSE notes.sync_retry_count END,
+			sync_error = CASE WHEN notes.deleted = 0 THEN NULL ELSE notes.sync_error END,
 			updated_at = CASE WHEN notes.deleted = 0 THEN excluded.updated_at ELSE notes.updated_at END
 	`,
 		id, note.UserID, note.Context, note.Date, note.Content,
-		note.ID, syncPending, note.CreatedAt, note.UpdatedAt,
+		note.ID, syncPending, syncStatus, note.CreatedAt, note.UpdatedAt,
 	)
 	return err
 }
@@ -307,9 +328,13 @@ func (r *Repository) MarkNoteSynced(noteID, driveFileID string) error {
 		UPDATE notes SET
 			drive_file_id = ?,
 			sync_pending = 0,
+			sync_status = ?,
+			sync_retry_count = 0,
+			sync_error = NULL,
+			sync_last_attempt_at = ?,
 			synced_at = ?
 		WHERE id = ?
-	`, driveFileID, time.Now(), noteID)
+	`, driveFileID, string(models.SyncStatusSynced), time.Now(), time.Now(), noteID)
 	return err
 }
 
@@ -364,7 +389,101 @@ func (r *Repository) HardDeleteNote(userID, context, date string) error {
 // MarkNoteAsNotPending marks a note as not pending sync to avoid infinite retry loops
 func (r *Repository) MarkNoteAsNotPending(noteID string) error {
 	_, err := r.db.Exec(`
-		UPDATE notes SET sync_pending = 0 WHERE id = ?
-	`, noteID)
+		UPDATE notes SET
+			sync_pending = 0,
+			sync_status = ?
+		WHERE id = ?
+	`, string(models.SyncStatusAbandoned), noteID)
+	return err
+}
+
+// MarkNoteSyncing marks a note as currently being synced
+func (r *Repository) MarkNoteSyncing(noteID string) error {
+	_, err := r.db.Exec(`
+		UPDATE notes SET
+			sync_status = ?,
+			sync_last_attempt_at = ?
+		WHERE id = ?
+	`, string(models.SyncStatusSyncing), time.Now(), noteID)
+	return err
+}
+
+// MarkNoteSyncFailed marks a note sync as failed and increments retry count
+func (r *Repository) MarkNoteSyncFailed(noteID string, errorMsg string) error {
+	_, err := r.db.Exec(`
+		UPDATE notes SET
+			sync_status = CASE
+				WHEN sync_retry_count + 1 >= ? THEN ?
+				ELSE ?
+			END,
+			sync_retry_count = sync_retry_count + 1,
+			sync_error = ?,
+			sync_last_attempt_at = ?,
+			sync_pending = CASE
+				WHEN sync_retry_count + 1 >= ? THEN 0
+				ELSE 1
+			END
+		WHERE id = ?
+	`, models.MaxSyncRetries, string(models.SyncStatusAbandoned),
+	   string(models.SyncStatusFailed), errorMsg, time.Now(),
+	   models.MaxSyncRetries, noteID)
+	return err
+}
+
+// GetFailedSyncNotes returns notes that have failed sync (for admin/debugging)
+func (r *Repository) GetFailedSyncNotes(userID string, limit int) ([]models.Note, error) {
+	rows, err := r.db.Query(`
+		SELECT id, user_id, context, date, content,
+		       sync_status, sync_retry_count, sync_last_attempt_at, sync_error,
+		       created_at, updated_at
+		FROM notes
+		WHERE user_id = ? AND sync_status IN (?, ?)
+		ORDER BY sync_last_attempt_at DESC
+		LIMIT ?
+	`, userID, string(models.SyncStatusFailed), string(models.SyncStatusAbandoned), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var notes []models.Note
+	for rows.Next() {
+		var note models.Note
+		var syncStatus string
+		var syncLastAttemptAt sql.NullTime
+		var syncError sql.NullString
+
+		if err := rows.Scan(
+			&note.ID, &note.UserID, &note.Context, &note.Date, &note.Content,
+			&syncStatus, &note.SyncRetryCount, &syncLastAttemptAt, &syncError,
+			&note.CreatedAt, &note.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		note.SyncStatus = models.SyncStatus(syncStatus)
+		if syncLastAttemptAt.Valid {
+			note.SyncLastAttemptAt = &syncLastAttemptAt.Time
+		}
+		if syncError.Valid {
+			note.SyncError = syncError.String
+		}
+
+		notes = append(notes, note)
+	}
+
+	return notes, rows.Err()
+}
+
+// RetrySyncNote resets a failed note's sync status to retry synchronization
+func (r *Repository) RetrySyncNote(noteID string) error {
+	_, err := r.db.Exec(`
+		UPDATE notes SET
+			sync_pending = 1,
+			sync_status = ?,
+			sync_retry_count = 0,
+			sync_error = NULL
+		WHERE id = ?
+	`, string(models.SyncStatusPending), noteID)
 	return err
 }

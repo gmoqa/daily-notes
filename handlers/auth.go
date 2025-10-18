@@ -1,428 +1,183 @@
 package handlers
 
 import (
-	"context"
 	"daily-notes/app"
 	"daily-notes/config"
-	"daily-notes/drive"
 	"daily-notes/models"
-	"encoding/json"
+	"daily-notes/services"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
 
 // Login handles user authentication via Google OAuth
 func Login(a *app.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-	var req models.LoginRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
-	}
+		var req models.LoginRequest
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid request body",
+			})
+		}
 
-	// Support both authorization code flow and direct token flow
-	var token *oauth2.Token
-	var googleID, email, name, picture string
+		// Delegate to AuthService based on login method
+		var loginResponse *services.LoginResponse
+		var err error
 
-	if req.Code != "" {
-		// Authorization Code Flow - exchange code for tokens
-		log.Printf("[AUTH] Using authorization code flow")
-		
-		ctx := context.Background()
-		oauthConfig := &oauth2.Config{
-			ClientID:     config.AppConfig.GoogleClientID,
-			ClientSecret: config.AppConfig.GoogleClientSecret,
-			RedirectURL:  config.AppConfig.GoogleRedirectURL,
-			Scopes: []string{
-				"https://www.googleapis.com/auth/drive.file",
-				"https://www.googleapis.com/auth/userinfo.email",
+		if req.Code != "" {
+			// Authorization Code Flow
+			log.Printf("[AUTH] Using authorization code flow")
+			loginResponse, err = a.AuthService.LoginWithCode(req.Code)
+		} else if req.AccessToken != "" {
+			// Direct Token Flow (legacy support)
+			log.Printf("[AUTH] Using direct access token flow (no refresh token)")
+			loginResponse, err = a.AuthService.LoginWithToken(req.AccessToken, req.RefreshToken, req.ExpiresIn)
+		} else {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Either code or access_token is required",
+			})
+		}
+
+		// Handle authentication errors
+		if err != nil {
+			log.Printf("[AUTH] Login failed: %v", err)
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Authentication failed",
+			})
+		}
+
+		// Set session cookie
+		cookie := &fiber.Cookie{
+			Name:     "session_id",
+			Value:    loginResponse.Session.ID,
+			Expires:  loginResponse.Session.ExpiresAt,
+			HTTPOnly: true,
+			Secure:   config.AppConfig.Env == "production",
+			SameSite: "Lax",
+			Path:     "/",
+		}
+		c.Cookie(cookie)
+
+		// Perform post-login operations (Drive import, cleanup) in background
+		a.AuthService.HandlePostLogin(loginResponse)
+
+		// Return response
+		log.Printf("[AUTH] Login successful for user %s (hasNoContexts=%v)",
+			loginResponse.Session.UserID, loginResponse.HasNoContexts)
+
+		return c.JSON(fiber.Map{
+			"success": true,
+			"user": fiber.Map{
+				"id":            loginResponse.Session.UserID,
+				"email":         loginResponse.Session.Email,
+				"name":          loginResponse.Session.Name,
+				"picture":       loginResponse.Session.Picture,
+				"settings":      loginResponse.Session.Settings,
+				"hasNoContexts": loginResponse.HasNoContexts,
 			},
-			Endpoint: google.Endpoint,
-		}
-
-		// Exchange authorization code for tokens
-		tok, err := oauthConfig.Exchange(ctx, req.Code)
-		if err != nil {
-			log.Printf("[AUTH] Failed to exchange code: %v", err)
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Failed to exchange authorization code",
-			})
-		}
-		token = tok
-
-		// Get user info using the access token
-		userInfoURL := "https://www.googleapis.com/oauth2/v3/userinfo"
-		httpReq, err := http.NewRequest("GET", userInfoURL, nil)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Failed to create request",
-			})
-		}
-		httpReq.Header.Set("Authorization", "Bearer "+token.AccessToken)
-
-		resp, err := http.DefaultClient.Do(httpReq)
-		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Failed to get user info",
-			})
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid token",
-			})
-		}
-
-		var userInfo map[string]interface{}
-		if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Failed to parse user info",
-			})
-		}
-
-		googleID, _ = userInfo["sub"].(string)
-		email, _ = userInfo["email"].(string)
-		name, _ = userInfo["name"].(string)
-		picture, _ = userInfo["picture"].(string)
-
-		log.Printf("[AUTH] Successfully exchanged code for tokens. Has refresh token: %v", token.RefreshToken != "")
-
-	} else if req.AccessToken != "" {
-		// Direct Token Flow (legacy support)
-		log.Printf("[AUTH] Using direct access token flow (no refresh token)")
-		
-		tokenExpiry := time.Now().Add(1 * time.Hour)
-		if req.ExpiresIn > 0 {
-			tokenExpiry = time.Now().Add(time.Duration(req.ExpiresIn) * time.Second)
-		}
-
-		token = &oauth2.Token{
-			AccessToken:  req.AccessToken,
-			RefreshToken: req.RefreshToken,
-			Expiry:       tokenExpiry,
-		}
-
-		// Validate access token by calling Google's userinfo endpoint
-		userInfoURL := "https://www.googleapis.com/oauth2/v3/userinfo"
-		httpReq, err := http.NewRequest("GET", userInfoURL, nil)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Failed to create request",
-			})
-		}
-		httpReq.Header.Set("Authorization", "Bearer "+req.AccessToken)
-
-		resp, err := http.DefaultClient.Do(httpReq)
-		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Failed to validate token",
-			})
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid Google token",
-			})
-		}
-
-		var userInfo map[string]interface{}
-		if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Failed to parse user info",
-			})
-		}
-
-		googleID, _ = userInfo["sub"].(string)
-		email, _ = userInfo["email"].(string)
-		name, _ = userInfo["name"].(string)
-		picture, _ = userInfo["picture"].(string)
-	} else {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Either code or access_token is required",
 		})
-	}
-
-	if googleID == "" || email == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid user information",
-		})
-	}
-
-	defaultSettings := models.UserSettings{
-		Theme:      "dark",
-		WeekStart:  0,
-		Timezone:   "UTC",
-		DateFormat: "DD-MM-YY",
-	}
-
-	userSettings := defaultSettings
-	if token.AccessToken != "" {
-		driveService, err := drive.NewService(context.Background(), token, googleID)
-		if err == nil {
-			settings, err := driveService.GetSettings()
-			if err == nil {
-				userSettings = settings
-			}
-		}
-	}
-
-	// Save/update user in database BEFORE creating session (due to foreign key constraint)
-	user := &models.User{
-		ID:          googleID,
-		GoogleID:    googleID,
-		Email:       email,
-		Name:        name,
-		Picture:     picture,
-		Settings:    userSettings,
-		CreatedAt:   time.Now(),
-		LastLoginAt: time.Now(),
-	}
-
-	if err := a.Repo.UpsertUser(user); err != nil {
-		log.Printf("Failed to save user to database: %v", err)
-		return &fiber.Error{
-			Code:    fiber.StatusInternalServerError,
-			Message: "Failed to save user",
-		}
-	}
-
-	sess, err := a.SessionStore.Create(
-		googleID,
-		email,
-		name,
-		picture,
-		token.AccessToken,
-		token.RefreshToken,
-		token.Expiry,
-		userSettings,
-	)
-	if err != nil {
-		return &fiber.Error{
-			Code:    fiber.StatusInternalServerError,
-			Message: "Failed to create session",
-		}
-	}
-
-	expiresAt := sess.ExpiresAt
-	cookie := &fiber.Cookie{
-		Name:     "session_id",
-		Value:    sess.ID,
-		Expires:  expiresAt,
-		HTTPOnly: true,
-		Secure:   config.AppConfig.Env == "production",
-		SameSite: "Lax",
-		Path:     "/",
-	}
-	c.Cookie(cookie)
-
-	// Check if this is first login by checking if user has any contexts
-	// This is more reliable than checking Drive folder as the folder might exist
-	// but the user might have deleted all contexts
-	contexts, err := a.Repo.GetContexts(googleID)
-	hasNoContexts := err == nil && len(contexts) == 0
-
-	log.Printf("[AUTH] User %s has %d contexts (hasNoContexts=%v)", googleID, len(contexts), hasNoContexts)
-
-	// If user has no contexts, try to import from Drive
-	if hasNoContexts && a.SyncWorker != nil && token.AccessToken != "" {
-		// Import data from Drive in background
-		go func() {
-			log.Printf("[AUTH] User %s has no contexts, importing from Drive...", googleID)
-			if err := a.SyncWorker.ImportFromDrive(googleID, token); err != nil {
-				log.Printf("[AUTH] Failed to import from Drive for user %s: %v", googleID, err)
-			} else {
-				log.Printf("[AUTH] Successfully imported data from Drive for user %s", googleID)
-			}
-		}()
-	}
-
-	// Cleanup old deleted folders (older than 10 days) in background
-	if token.AccessToken != "" {
-		driveService, err := drive.NewService(context.Background(), token, googleID)
-		if err == nil {
-			go func() {
-				if err := driveService.CleanupOldDeletedFolders(); err != nil {
-					log.Printf("[AUTH] Failed to cleanup old deleted folders for user %s: %v", googleID, err)
-				} else {
-					log.Printf("[AUTH] Successfully cleaned up old deleted folders for user %s", googleID)
-				}
-			}()
-		}
-	}
-
-	response := fiber.Map{
-		"success": true,
-		"user": fiber.Map{
-			"id":           sess.UserID,
-			"email":        sess.Email,
-			"name":         sess.Name,
-			"picture":      sess.Picture,
-			"settings":     sess.Settings,
-			"hasNoContexts": hasNoContexts,
-		},
-	}
-
-	log.Printf("[AUTH] Login response for user %s: hasNoContexts=%v", googleID, hasNoContexts)
-	return c.JSON(response)
 	}
 }
 
 // Logout handles user logout
 func Logout(a *app.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-	sessionID := c.Cookies("session_id")
-	if sessionID != "" {
-		a.SessionStore.Delete(sessionID)
-	}
+		sessionID := c.Cookies("session_id")
+		if sessionID != "" {
+			a.AuthService.Logout(sessionID)
+		}
 
-	c.ClearCookie("session_id")
+		c.ClearCookie("session_id")
 
-	return c.JSON(fiber.Map{
-		"success": true,
-	})
+		return c.JSON(fiber.Map{
+			"success": true,
+		})
 	}
 }
 
 // Me returns the current user's session information
 func Me(a *app.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-	sessionID := c.Cookies("session_id")
-	if sessionID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"authenticated": false,
+		sessionID := c.Cookies("session_id")
+		if sessionID == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"authenticated": false,
+			})
+		}
+
+		sess, err := a.AuthService.GetSessionInfo(sessionID)
+		if err != nil {
+			c.ClearCookie("session_id")
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"authenticated": false,
+			})
+		}
+
+		// Update last used timestamp
+		sess.LastUsedAt = time.Now()
+		a.SessionStore.Update(sessionID, sess)
+
+		return c.JSON(fiber.Map{
+			"authenticated": true,
+			"user": fiber.Map{
+				"id":       sess.UserID,
+				"email":    sess.Email,
+				"name":     sess.Name,
+				"picture":  sess.Picture,
+				"settings": sess.Settings,
+			},
 		})
-	}
-
-	sess, err := a.SessionStore.Get(sessionID)
-	if err != nil || sess == nil {
-		c.ClearCookie("session_id")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"authenticated": false,
-		})
-	}
-
-	sess.LastUsedAt = time.Now()
-	a.SessionStore.Update(sessionID, sess)
-
-	return c.JSON(fiber.Map{
-		"authenticated": true,
-		"user": fiber.Map{
-			"id":       sess.UserID,
-			"email":    sess.Email,
-			"name":     sess.Name,
-			"picture":  sess.Picture,
-			"settings": sess.Settings,
-		},
-	})
 	}
 }
 
 // UpdateSettings updates user settings
 func UpdateSettings(a *app.App) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-	var req models.UpdateSettingsRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
-	}
-
-	// Validate request
-	if err := a.Validator.Validate(&req); err != nil {
-		return validationError(c, err)
-	}
-
-	sessionID := c.Cookies("session_id")
-	sess, err := a.SessionStore.Get(sessionID)
-	if err != nil || sess == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized",
-		})
-	}
-
-	settings := models.UserSettings{
-		Theme:                req.Theme,
-		WeekStart:            req.WeekStart,
-		Timezone:             req.Timezone,
-		DateFormat:           req.DateFormat,
-		UniqueContextMode:    req.UniqueContextMode,
-		ShowBreadcrumb:       req.ShowBreadcrumb,
-		ShowMarkdownEditor:   req.ShowMarkdownEditor,
-		HideNewContextButton: req.HideNewContextButton,
-	}
-
-	// Update in local database
-	if err := a.Repo.UpdateUserSettings(sess.UserID, settings); err != nil {
-		log.Printf("Failed to update settings in database: %v", err)
-	}
-
-	// Update in Drive async
-	if sess.AccessToken != "" {
-		token := &oauth2.Token{
-			AccessToken:  sess.AccessToken,
-			RefreshToken: sess.RefreshToken,
-			Expiry:       sess.TokenExpiry,
+		var req models.UpdateSettingsRequest
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid request body",
+			})
 		}
 
-		go func() {
-			driveService, err := drive.NewService(context.Background(), token, sess.UserID)
-			if err == nil {
-				driveService.UpdateSettings(settings)
-			}
-		}()
-	}
-
-	sess.Settings = settings
-	a.SessionStore.Update(sessionID, sess)
-
-	return c.JSON(fiber.Map{"success": true})
-	}
-}
-
-// SyncFromDrive manually triggers a sync from Google Drive
-func SyncFromDrive(a *app.App) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-	sessionID := c.Cookies("session_id")
-	sess, err := a.SessionStore.Get(sessionID)
-	if err != nil || sess == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized",
-		})
-	}
-
-	if a.SyncWorker == nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Sync worker not available",
-		})
-	}
-
-	token := &oauth2.Token{
-		AccessToken:  sess.AccessToken,
-		RefreshToken: sess.RefreshToken,
-		Expiry:       sess.TokenExpiry,
-	}
-
-	// Import data from Drive
-	go func() {
-		log.Printf("Manual sync triggered for user %s", sess.UserID)
-		if err := a.SyncWorker.ImportFromDrive(sess.UserID, token); err != nil {
-			log.Printf("Failed to import from Drive: %v", err)
-		} else {
-			log.Printf("Successfully imported data from Drive for user %s", sess.UserID)
+		// Validate request
+		if err := a.Validator.Validate(&req); err != nil {
+			return validationError(c, err)
 		}
-	}()
 
-	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Sync started in background",
-	})
+		sessionID := c.Cookies("session_id")
+		sess, err := a.AuthService.GetSessionInfo(sessionID)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Unauthorized",
+			})
+		}
+
+		settings := models.UserSettings{
+			Theme:                req.Theme,
+			WeekStart:            req.WeekStart,
+			Timezone:             req.Timezone,
+			DateFormat:           req.DateFormat,
+			UniqueContextMode:    req.UniqueContextMode,
+			ShowBreadcrumb:       req.ShowBreadcrumb,
+			ShowMarkdownEditor:   req.ShowMarkdownEditor,
+			HideNewContextButton: req.HideNewContextButton,
+		}
+
+		if err := a.Repo.UpdateUserSettings(sess.UserID, settings); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to update settings",
+			})
+		}
+
+		// Update session with new settings
+		sess.Settings = settings
+		a.SessionStore.Update(sessionID, sess)
+
+		return c.JSON(fiber.Map{
+			"success": true,
+			"settings": settings,
+		})
 	}
 }
