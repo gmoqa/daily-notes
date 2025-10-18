@@ -8,6 +8,7 @@ import (
 	"daily-notes/handlers"
 	"daily-notes/middleware"
 	"daily-notes/session"
+	"daily-notes/storage"
 	"daily-notes/sync"
 	"log/slog"
 	"os"
@@ -67,13 +68,17 @@ func main() {
 		}, nil
 	}
 
-	// Start sync worker for background Drive sync
-	syncWorker := sync.NewWorker(repo, sessionStore, getUserToken)
+	// Create storage factory (using Drive as the implementation)
+	storageFactory := storage.NewDriveProvider
+	logger.Info("storage factory configured with Drive provider")
+
+	// Start sync worker for background sync
+	syncWorker := sync.NewWorker(repo, sessionStore, storageFactory, getUserToken)
 	syncWorker.Start()
 	logger.Info("sync worker started")
 
 	// Create App with all dependencies injected
-	application := app.New(repo, syncWorker, sessionStore, logger)
+	application := app.New(repo, syncWorker, sessionStore, storageFactory, logger)
 	logger.Info("application initialized with dependency injection")
 
 	// Templ doesn't need a template engine - it renders directly
@@ -153,7 +158,10 @@ func main() {
 	api.Get("/notes/list", handlers.GetNotesByContext(application))
 	api.Delete("/notes/:context/:date", handlers.DeleteNote(application))
 	api.Put("/settings", handlers.UpdateSettings(application))
-	api.Post("/sync/drive", handlers.SyncFromDrive(application))
+	// NOTE: Drive sync is now handled automatically on login via AuthService
+	// api.Post("/sync/drive", handlers.SyncFromDrive(application)) // Removed - auto-sync on login
+	api.Get("/sync/status", handlers.GetSyncStatus(application))
+	api.Post("/sync/retry/:id", handlers.RetryNoteSync(application))
 
 	logger.Info("starting server", "port", config.AppConfig.Port, "env", config.AppConfig.Env)
 

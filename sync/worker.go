@@ -3,8 +3,9 @@ package sync
 import (
 	"context"
 	"daily-notes/database"
-	"daily-notes/drive"
 	"daily-notes/session"
+	"daily-notes/storage"
+	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -14,22 +15,28 @@ import (
 )
 
 type Worker struct {
-	repo         *database.Repository
-	sessionStore *session.Store
-	interval     time.Duration
-	running      bool
-	mu           sync.Mutex
-	stopChan     chan struct{}
-	getUserToken func(userID string) (*oauth2.Token, error)
+	repo            *database.Repository
+	sessionStore    *session.Store
+	storageFactory  storage.Factory
+	baseInterval    time.Duration
+	maxInterval     time.Duration
+	currentInterval time.Duration
+	running         bool
+	mu              sync.Mutex
+	stopChan        chan struct{}
+	getUserToken    func(userID string) (*oauth2.Token, error)
 }
 
-func NewWorker(repo *database.Repository, sessionStore *session.Store, getUserToken func(userID string) (*oauth2.Token, error)) *Worker {
+func NewWorker(repo *database.Repository, sessionStore *session.Store, storageFactory storage.Factory, getUserToken func(userID string) (*oauth2.Token, error)) *Worker {
 	return &Worker{
-		repo:         repo,
-		sessionStore: sessionStore,
-		interval:     5 * time.Second, // Reduced from 30s to 5s for faster sync
-		getUserToken: getUserToken,
-		stopChan:     make(chan struct{}),
+		repo:            repo,
+		sessionStore:    sessionStore,
+		storageFactory:  storageFactory,
+		baseInterval:    2 * time.Minute,  // Base interval for retries
+		maxInterval:     5 * time.Minute,  // Max interval when no work
+		currentInterval: 2 * time.Minute,  // Start with base interval
+		getUserToken:    getUserToken,
+		stopChan:        make(chan struct{}),
 	}
 }
 
@@ -61,7 +68,7 @@ func (w *Worker) Stop() {
 }
 
 func (w *Worker) run() {
-	ticker := time.NewTicker(w.interval)
+	ticker := time.NewTicker(w.currentInterval)
 	defer ticker.Stop()
 
 	// Run immediately on start
@@ -70,30 +77,69 @@ func (w *Worker) run() {
 	for {
 		select {
 		case <-ticker.C:
-			w.syncPendingNotes()
+			hadWork := w.syncPendingNotes()
+
+			// Adaptive backoff: increase interval when no work, reset when there's work
+			w.mu.Lock()
+			if hadWork {
+				// Reset to base interval when there's work
+				if w.currentInterval != w.baseInterval {
+					w.currentInterval = w.baseInterval
+					ticker.Reset(w.currentInterval)
+					log.Printf("[Sync Worker] Work found, reset interval to %v", w.currentInterval)
+				}
+			} else {
+				// Increase interval up to max when no work
+				if w.currentInterval < w.maxInterval {
+					w.currentInterval = w.maxInterval
+					ticker.Reset(w.currentInterval)
+					log.Printf("[Sync Worker] No work, increased interval to %v", w.currentInterval)
+				}
+			}
+			w.mu.Unlock()
 		case <-w.stopChan:
 			return
 		}
 	}
 }
 
-func (w *Worker) syncPendingNotes() {
-	// Get batch of pending notes
+func (w *Worker) syncPendingNotes() bool {
+	// Get batch of pending notes (only retry old ones to avoid race with immediate sync)
 	notes, err := w.repo.GetPendingSyncNotes(50)
 	if err != nil {
 		log.Printf("[Sync Worker] Failed to get pending notes: %v", err)
-		return
+		return false
 	}
 
 	if len(notes) == 0 {
-		return
+		return false
 	}
 
-	log.Printf("[Sync Worker] Syncing %d pending notes", len(notes))
+	// Filter notes older than 30 seconds (avoid race with immediate sync)
+	var oldNotes []database.NoteWithMeta
+	now := time.Now()
+	for _, note := range notes {
+		if note.SyncLastAttemptAt != nil {
+			if now.Sub(*note.SyncLastAttemptAt) >= 30*time.Second {
+				oldNotes = append(oldNotes, note)
+			}
+		} else {
+			// No previous attempt, check creation time
+			if now.Sub(note.UpdatedAt) >= 30*time.Second {
+				oldNotes = append(oldNotes, note)
+			}
+		}
+	}
+
+	if len(oldNotes) == 0 {
+		return false
+	}
+
+	log.Printf("[Sync Worker] Processing %d pending/failed notes for retry", len(oldNotes))
 
 	// Group notes by user
 	notesByUser := make(map[string][]database.NoteWithMeta)
-	for _, note := range notes {
+	for _, note := range oldNotes {
 		notesByUser[note.UserID] = append(notesByUser[note.UserID], note)
 	}
 
@@ -101,32 +147,44 @@ func (w *Worker) syncPendingNotes() {
 	for userID, userNotes := range notesByUser {
 		w.syncUserNotes(userID, userNotes)
 	}
+
+	return true // Had work
 }
 
-func (w *Worker) syncUserNotes(userID string, notes []database.NoteWithMeta) {
-	// Get user's Drive token
+// syncResult holds the result of a sync operation
+type syncResult struct {
+	syncedCount  int
+	failedCount  int
+	tokenExpired bool
+}
+
+// syncNotesWithDrive is the unified sync logic for both immediate and batch sync
+// It handles token retrieval, storage provider creation, note syncing, and token refresh
+func (w *Worker) syncNotesWithDrive(userID string, notes []database.NoteWithMeta, logPrefix string) *syncResult {
+	result := &syncResult{}
+
+	// Get user's token
 	token, err := w.getUserToken(userID)
 	if err != nil {
-		log.Printf("[Sync Worker] Failed to get token for user %s: %v", userID, err)
-		// Mark all notes as not pending since we can't sync without a token
-		w.markNotesAsNotPending(notes)
-		return
+		log.Printf("[%s] Failed to get token for user %s: %v", logPrefix, userID, err)
+		w.markNotesAsFailed(notes, fmt.Sprintf("Failed to get authentication token: %v", err))
+		result.failedCount = len(notes)
+		return result
 	}
 
-	// Create Drive service
-	driveService, err := drive.NewService(context.Background(), token, userID)
+	// Create storage provider
+	provider, err := w.storageFactory(context.Background(), token, userID)
 	if err != nil {
-		log.Printf("[Sync Worker] Failed to create Drive service for user %s: %v", userID, err)
-		// Mark all notes as not pending since we can't sync without Drive service
-		w.markNotesAsNotPending(notes)
-		return
+		log.Printf("[%s] Failed to create storage provider for user %s: %v", logPrefix, userID, err)
+		w.markNotesAsFailed(notes, fmt.Sprintf("Failed to connect to cloud storage: %v", err))
+		result.failedCount = len(notes)
+		return result
 	}
 
 	// Separate delete operations and regular operations
 	var deleteOps []database.NoteWithMeta
 	var regularOps []database.NoteWithMeta
 	for _, note := range notes {
-		log.Printf("[Sync Worker] Processing note: context=%s, date=%s, deleted=%v", note.Context, note.Date, note.Deleted)
 		if note.Deleted {
 			deleteOps = append(deleteOps, note)
 		} else {
@@ -134,82 +192,104 @@ func (w *Worker) syncUserNotes(userID string, notes []database.NoteWithMeta) {
 		}
 	}
 
-	log.Printf("[Sync Worker] Separated operations: %d deletes, %d regular", len(deleteOps), len(regularOps))
-
 	// Process deletions first (higher priority)
-	syncedCount := 0
-	tokenExpired := false
-	
 	for _, note := range deleteOps {
-		if err := w.syncNote(driveService, &note); err != nil {
+		// Mark note as currently syncing
+		if err := w.repo.MarkNoteSyncing(note.ID); err != nil {
+			log.Printf("[%s] Failed to mark note as syncing: %v", logPrefix, err)
+		}
+
+		if err := w.syncNote(provider, &note); err != nil {
 			// Check if it's a token expiration error
 			if w.isTokenExpiredError(err) {
-				log.Printf("[Sync Worker] Token expired for user %s, stopping sync", userID)
-				tokenExpired = true
+				log.Printf("[%s] Token expired for user %s, stopping sync", logPrefix, userID)
+				result.tokenExpired = true
+				w.repo.MarkNoteSyncFailed(note.ID, "Authentication token expired")
+				result.failedCount++
 				break
 			}
-			log.Printf("[Sync Worker] Failed to delete note %s: %v", note.ID, err)
+			// Mark as failed with error message
+			w.repo.MarkNoteSyncFailed(note.ID, fmt.Sprintf("Delete failed: %v", err))
+			result.failedCount++
 			continue
 		}
-		log.Printf("[Sync Worker] Successfully deleted note from Drive: %s/%s", note.Context, note.Date)
-		syncedCount++
+		result.syncedCount++
 	}
 
 	// Then process regular operations (only if token is still valid)
-	if !tokenExpired {
+	if !result.tokenExpired {
 		for _, note := range regularOps {
-			if err := w.syncNote(driveService, &note); err != nil {
+			// Mark note as currently syncing
+			if err := w.repo.MarkNoteSyncing(note.ID); err != nil {
+				log.Printf("[%s] Failed to mark note as syncing: %v", logPrefix, err)
+			}
+
+			if err := w.syncNote(provider, &note); err != nil {
 				// Check if it's a token expiration error
 				if w.isTokenExpiredError(err) {
-					log.Printf("[Sync Worker] Token expired for user %s, stopping sync", userID)
-					tokenExpired = true
+					log.Printf("[%s] Token expired for user %s, stopping sync", logPrefix, userID)
+					result.tokenExpired = true
+					w.repo.MarkNoteSyncFailed(note.ID, "Authentication token expired")
+					result.failedCount++
 					break
 				}
-				log.Printf("[Sync Worker] Failed to sync note %s: %v", note.ID, err)
+				// Mark as failed with error message
+				w.repo.MarkNoteSyncFailed(note.ID, fmt.Sprintf("Sync failed: %v", err))
+				result.failedCount++
 				continue
 			}
-			syncedCount++
+			result.syncedCount++
 		}
 	}
 
-	// If token expired, mark all remaining notes as not pending
-	if tokenExpired {
-		log.Printf("[Sync Worker] Marking %d notes as not pending due to expired token", len(notes))
-		w.markNotesAsNotPending(notes)
-		return
-	}
-
-	if syncedCount > 0 {
-		log.Printf("[Sync Worker] Successfully synced %d/%d notes for user %s", syncedCount, len(notes), userID)
+	// If token expired, mark all remaining unprocessed notes as failed
+	if result.tokenExpired {
+		log.Printf("[%s] Marking remaining notes as failed due to expired token", logPrefix)
+		errorMsg := "Authentication token expired, please sign in again"
+		for _, note := range notes {
+			w.repo.MarkNoteSyncFailed(note.ID, errorMsg)
+		}
+		return result
 	}
 
 	// Update the token in the session if it was refreshed
-	currentToken, err := driveService.GetCurrentToken()
+	currentToken, err := provider.GetCurrentToken()
 	if err == nil && currentToken != nil {
 		// Only update if the token actually changed
 		if currentToken.AccessToken != token.AccessToken || !currentToken.Expiry.Equal(token.Expiry) {
-			log.Printf("[Sync Worker] Token was refreshed for user %s, updating session", userID)
+			log.Printf("[%s] Token was refreshed for user %s, updating session", logPrefix, userID)
 			if w.sessionStore != nil {
 				if err := w.sessionStore.UpdateUserToken(userID, currentToken.AccessToken, currentToken.RefreshToken, currentToken.Expiry); err != nil {
-					log.Printf("[Sync Worker] Failed to update token in session: %v", err)
+					log.Printf("[%s] Failed to update token in session: %v", logPrefix, err)
 				}
 			}
 		}
 	}
+
+	return result
 }
 
-func (w *Worker) syncNote(driveService *drive.Service, note *database.NoteWithMeta) error {
+func (w *Worker) syncUserNotes(userID string, notes []database.NoteWithMeta) {
+	result := w.syncNotesWithDrive(userID, notes, "Sync Worker")
+
+	if result.syncedCount > 0 || result.failedCount > 0 {
+		log.Printf("[Sync Worker] Sync complete for user %s: %d succeeded, %d failed out of %d total",
+			userID, result.syncedCount, result.failedCount, len(notes))
+	}
+}
+
+func (w *Worker) syncNote(provider storage.Provider, note *database.NoteWithMeta) error {
 	if note.Deleted {
-		// Delete from Drive
-		if err := driveService.DeleteNote(note.Context, note.Date); err != nil {
+		// Delete from storage
+		if err := provider.DeleteNote(note.Context, note.Date); err != nil {
 			return err
 		}
-		// Hard delete from database after successful Drive deletion
+		// Hard delete from database after successful deletion
 		return w.repo.HardDeleteNote(note.UserID, note.Context, note.Date)
 	}
 
-	// Upload to Drive
-	syncedNote, err := driveService.UpsertNote(note.Context, note.Date, note.Content)
+	// Upload to storage
+	syncedNote, err := provider.UpsertNote(note.Context, note.Date, note.Content)
 	if err != nil {
 		return err
 	}
@@ -218,18 +298,18 @@ func (w *Worker) syncNote(driveService *drive.Service, note *database.NoteWithMe
 	return w.repo.MarkNoteSynced(note.ID, syncedNote.ID)
 }
 
-// ImportFromDrive imports all notes and contexts from Google Drive for a user
+// ImportFromDrive imports all notes and contexts from cloud storage for a user
 func (w *Worker) ImportFromDrive(userID string, token *oauth2.Token) error {
-	log.Printf("[Sync Worker] Starting Drive import for user %s", userID)
+	log.Printf("[Sync Worker] Starting storage import for user %s", userID)
 
-	// Create Drive service
-	driveService, err := drive.NewService(context.Background(), token, userID)
+	// Create storage provider
+	provider, err := w.storageFactory(context.Background(), token, userID)
 	if err != nil {
 		return err
 	}
 
-	// Get config from Drive (contains contexts)
-	config, err := driveService.GetConfig()
+	// Get config from storage (contains contexts)
+	config, err := provider.GetConfig()
 	if err != nil {
 		return err
 	}
@@ -244,7 +324,7 @@ func (w *Worker) ImportFromDrive(userID string, token *oauth2.Token) error {
 	// Import notes for each context
 	totalNotes := 0
 	for _, ctx := range config.Contexts {
-		notes, err := driveService.GetAllNotesInContext(ctx.Name)
+		notes, err := provider.GetAllNotesInContext(ctx.Name)
 		if err != nil {
 			log.Printf("[Sync Worker] Failed to import notes for context %s: %v", ctx.Name, err)
 			continue
@@ -262,7 +342,7 @@ func (w *Worker) ImportFromDrive(userID string, token *oauth2.Token) error {
 	}
 
 	// Update the token in the session if it was refreshed
-	currentToken, err := driveService.GetCurrentToken()
+	currentToken, err := provider.GetCurrentToken()
 	if err == nil && currentToken != nil {
 		// Only update if the token actually changed
 		if currentToken.AccessToken != token.AccessToken || !currentToken.Expiry.Equal(token.Expiry) {
@@ -275,7 +355,7 @@ func (w *Worker) ImportFromDrive(userID string, token *oauth2.Token) error {
 		}
 	}
 
-	log.Printf("[Sync Worker] Imported %d contexts and %d notes from Drive", len(config.Contexts), totalNotes)
+	log.Printf("[Sync Worker] Imported %d contexts and %d notes from storage", len(config.Contexts), totalNotes)
 	return nil
 }
 
@@ -291,11 +371,39 @@ func (w *Worker) isTokenExpiredError(err error) bool {
 	       strings.Contains(errMsg, "401")
 }
 
-// markNotesAsNotPending marks a batch of notes as not pending to avoid infinite retry loops
-func (w *Worker) markNotesAsNotPending(notes []database.NoteWithMeta) {
+// markNotesAsFailed marks a batch of notes as failed with an error message
+func (w *Worker) markNotesAsFailed(notes []database.NoteWithMeta, errorMsg string) {
 	for _, note := range notes {
-		if err := w.repo.MarkNoteAsNotPending(note.ID); err != nil {
-			log.Printf("[Sync Worker] Failed to mark note %s as not pending: %v", note.ID, err)
+		if err := w.repo.MarkNoteSyncFailed(note.ID, errorMsg); err != nil {
+			log.Printf("[Sync Worker] Failed to mark note %s as failed: %v", note.ID, err)
 		}
 	}
+}
+
+// SyncNoteImmediate attempts to sync a single note immediately (non-blocking)
+// This is called when a user saves a note for instant sync to Drive
+func (w *Worker) SyncNoteImmediate(userID, noteContext, date string) {
+	go func() {
+		// Get the note from database
+		note, err := w.repo.GetNote(userID, noteContext, date)
+		if err != nil {
+			log.Printf("[Immediate Sync] Failed to get note %s/%s: %v", noteContext, date, err)
+			return
+		}
+
+		// Convert to NoteWithMeta for unified sync
+		noteMeta := database.NoteWithMeta{
+			Note: *note,
+		}
+
+		// Use unified sync logic
+		result := w.syncNotesWithDrive(userID, []database.NoteWithMeta{noteMeta}, "Immediate Sync")
+
+		// Log result
+		if result.syncedCount > 0 {
+			log.Printf("[Immediate Sync] Successfully synced note %s/%s", noteContext, date)
+		} else if result.failedCount > 0 {
+			log.Printf("[Immediate Sync] Failed to sync note %s/%s", noteContext, date)
+		}
+	}()
 }

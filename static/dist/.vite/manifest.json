@@ -1,0 +1,20 @@
+{
+  "src/main-legacy.ts": {
+    "file": "js/main-legacy-DON0QWmt.js",
+    "name": "main",
+    "src": "src/main-legacy.ts",
+    "isEntry": true
+  },
+  "src/main.ts": {
+    "file": "js/main-yDWHE-9N.js",
+    "name": "main",
+    "src": "src/main.ts",
+    "isEntry": true
+  },
+  "vite/legacy-polyfills-legacy": {
+    "file": "js/polyfills-legacy-DJjjaoED.js",
+    "name": "polyfills",
+    "src": "vite/legacy-polyfills-legacy",
+    "isEntry": true
+  }
+}

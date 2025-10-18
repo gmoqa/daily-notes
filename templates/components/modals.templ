@@ -379,4 +379,20 @@ templ Modals() {
 			</footer>
 		</div>
 	</div>
+	<!-- Fullscreen Note Modal -->
+	<div class="modal" id="fullscreen-note-modal">
+		<div class="modal-background" style="background-color: var(--bulma-scheme-main);"></div>
+		<div class="modal-content" style="width: 95%; max-width: 1200px; height: 95vh; display: flex; flex-direction: column; background-color: var(--bulma-scheme-main);">
+			<!-- Header with date -->
+			<div style="padding: 1.5rem 2rem; border-bottom: 1px solid var(--bulma-border);">
+				<div>
+					<p class="title is-4" id="fullscreen-note-date"></p>
+				</div>
+			</div>
+			<!-- Editor content -->
+			<div style="flex: 1; overflow-y: auto; padding: 2rem;">
+				<div id="fullscreen-note-editor" style="min-height: 100%;"></div>
+			</div>
+		</div>
+	</div>
 }

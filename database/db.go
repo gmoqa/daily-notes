@@ -76,7 +76,7 @@ func (db *DB) Migrate() error {
 			UNIQUE(user_id, name)
 		)`,
 
-		// Notes table
+		// Notes table with enhanced sync state management
 		`CREATE TABLE IF NOT EXISTS notes (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL,
@@ -86,6 +86,10 @@ func (db *DB) Migrate() error {
 			drive_file_id TEXT,
 			synced_at DATETIME,
 			sync_pending INTEGER DEFAULT 1,
+			sync_status TEXT DEFAULT 'pending',
+			sync_retry_count INTEGER DEFAULT 0,
+			sync_last_attempt_at DATETIME,
+			sync_error TEXT,
 			deleted INTEGER DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -117,13 +121,18 @@ func (db *DB) Migrate() error {
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 		)`,
 
-		// Add deleted column to notes table if it doesn't exist (migration)
+		// Migrations for existing databases
 		`ALTER TABLE notes ADD COLUMN deleted INTEGER DEFAULT 0`,
+		`ALTER TABLE notes ADD COLUMN sync_status TEXT DEFAULT 'pending'`,
+		`ALTER TABLE notes ADD COLUMN sync_retry_count INTEGER DEFAULT 0`,
+		`ALTER TABLE notes ADD COLUMN sync_last_attempt_at DATETIME`,
+		`ALTER TABLE notes ADD COLUMN sync_error TEXT`,
 
 		// Indexes for performance
 		`CREATE INDEX IF NOT EXISTS idx_notes_user_context ON notes(user_id, context)`,
 		`CREATE INDEX IF NOT EXISTS idx_notes_user_date ON notes(user_id, date)`,
 		`CREATE INDEX IF NOT EXISTS idx_notes_sync_pending ON notes(sync_pending) WHERE sync_pending = 1`,
+		`CREATE INDEX IF NOT EXISTS idx_notes_sync_status ON notes(sync_status)`,
 		`CREATE INDEX IF NOT EXISTS idx_contexts_user ON contexts(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)`,
@@ -131,12 +140,12 @@ func (db *DB) Migrate() error {
 
 	for i, query := range queries {
 		if _, err := db.Exec(query); err != nil {
-			// Ignore "duplicate column" error for ALTER TABLE (migration already applied)
-			if i == 4 && strings.Contains(err.Error(), "duplicate column name") {
+			// Ignore "duplicate column" error for ALTER TABLE (migrations already applied)
+			if i >= 4 && i <= 8 && strings.Contains(err.Error(), "duplicate column name") {
 				// Migration already applied
 				continue
 			}
-			return fmt.Errorf("migration failed: %w", err)
+			return fmt.Errorf("migration %d failed: %w", i, err)
 		}
 	}
 

@@ -2,6 +2,22 @@ package models
 
 import "time"
 
+// SyncStatus represents the synchronization state of a note
+type SyncStatus string
+
+const (
+	SyncStatusPending    SyncStatus = "pending"     // Waiting to be synced
+	SyncStatusSyncing    SyncStatus = "syncing"     // Currently being synced
+	SyncStatusSynced     SyncStatus = "synced"      // Successfully synced
+	SyncStatusFailed     SyncStatus = "failed"      // Sync failed (will retry)
+	SyncStatusAbandoned  SyncStatus = "abandoned"   // Too many failures, stopped retrying
+)
+
+const (
+	// MaxSyncRetries is the maximum number of times we'll retry a failed sync
+	MaxSyncRetries = 5
+)
+
 type UserSettings struct {
 	Theme                string `json:"theme"`
 	WeekStart            int    `json:"weekStart"`
@@ -36,13 +52,17 @@ type UpdateSettingsRequest struct {
 }
 
 type Note struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	Context   string    `json:"context"`
-	Date      string    `json:"date"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                 string     `json:"id"`
+	UserID             string     `json:"user_id"`
+	Context            string     `json:"context"`
+	Date               string     `json:"date"`
+	Content            string     `json:"content"`
+	SyncStatus         SyncStatus `json:"sync_status,omitempty"`
+	SyncRetryCount     int        `json:"sync_retry_count,omitempty"`
+	SyncLastAttemptAt  *time.Time `json:"sync_last_attempt_at,omitempty"`
+	SyncError          string     `json:"sync_error,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 type Context struct {

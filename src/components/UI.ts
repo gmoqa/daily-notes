@@ -3,24 +3,103 @@
  * Handles all UI rendering and user interactions
  */
 
-import { state } from './state.js';
-import { contexts } from './contexts.js';
-import { calendar } from './calendar.js';
-import { notes } from './notes.js';
-import { events, EVENT } from './events.js';
-import { api } from './api.js';
-import { notifications } from './notifications.js';
+import { state } from '@/utils/state';
+import { contexts } from '@/services/contexts';
+import { calendar } from '@/components/Calendar';
+import { notes } from '@/services/notes';
+import { events } from '@/utils/events';
+import { api } from '@/services/api';
+import { notifications } from '@/components/Notifications';
+import { markdownEditor } from '@/components/Editor';
+import { auth } from '@/services/auth';
 
-class UIManager {
+interface UIElements {
+    // Sections
+    authSection: HTMLElement | null;
+    appSection: HTMLElement | null;
+
+    // Context
+    contextSelect: HTMLSelectElement | null;
+    contextColorIndicator: HTMLElement | null;
+
+    // Mobile context
+    mobileContextSelect: HTMLSelectElement | null;
+    mobileContextColorIndicator: HTMLElement | null;
+
+    // Date
+    datePicker: HTMLInputElement | null;
+
+    // Breadcrumb
+    breadcrumbContextName: HTMLElement | null;
+    breadcrumbDateName: HTMLElement | null;
+
+    // Editor
+    markdownEditorContainer: HTMLElement | null;
+    saveIndicator: HTMLElement | null;
+
+    // Notes list
+    notesList: HTMLElement | null;
+
+    // User
+    userEmail: HTMLElement | null;
+
+    // Time
+    currentTime: HTMLElement | null;
+    currentDate: HTMLElement | null;
+
+    // Modals
+    contextModal: HTMLElement | null;
+    settingsModal: HTMLElement | null;
+    onboardingModal: HTMLElement | null;
+
+    // Sync status
+    syncStatus: HTMLElement | null;
+    syncStatusText: HTMLElement | null;
+
+    // Theme
+    themeToggleMenu: HTMLElement | null;
+    themeToggleSwitch: HTMLInputElement | null;
+
+    // Settings
+    weekStartSelect: HTMLSelectElement | null;
+    timezoneSelect: HTMLSelectElement | null;
+
+    // Mobile navigation
+    mobileNotesToggle: HTMLElement | null;
+    mobileCalendarToggle: HTMLElement | null;
+    sidebar: HTMLElement | null;
+    calendarPanel: HTMLElement | null;
+    sidebarOverlay: HTMLElement | null;
+    calendarOverlay: HTMLElement | null;
+    sidebarClose: HTMLElement | null;
+    calendarClose: HTMLElement | null;
+}
+
+interface SyncStatusOptions {
+    pending: number;
+    syncing: boolean;
+}
+
+interface NotificationOptions {
+    title?: string;
+    duration?: number;
+}
+
+export class UIManager {
+    elements: UIElements;
+    lastKnownDate: string | null;
+    INITIAL_RENDER_COUNT: number;
+    renderedNotesCount: number;
+
     constructor() {
-        this.elements = {};
+        this.elements = {} as UIElements;
         this.lastKnownDate = null;
         // Virtual scrolling optimization
         this.INITIAL_RENDER_COUNT = 50; // Only render first 50 notes initially
         this.renderedNotesCount = this.INITIAL_RENDER_COUNT;
     }
 
-    init() {
+    init(): void {
         this.cacheElements();
         this.setupEventListeners();
         this.setupStateSubscriptions();
@@ -29,22 +108,22 @@ class UIManager {
         this.startClock();
     }
 
-    cacheElements() {
+    cacheElements(): void {
         this.elements = {
             // Sections
             authSection: document.getElementById('auth-section'),
             appSection: document.getElementById('app-section'),
 
             // Context
-            contextSelect: document.getElementById('context-select'),
+            contextSelect: document.getElementById('context-select') as HTMLSelectElement | null,
             contextColorIndicator: document.getElementById('context-color-indicator'),
 
             // Mobile context
-            mobileContextSelect: document.getElementById('mobile-context-select'),
+            mobileContextSelect: document.getElementById('mobile-context-select') as HTMLSelectElement | null,
             mobileContextColorIndicator: document.getElementById('mobile-context-color-indicator'),
 
             // Date
-            datePicker: document.getElementById('date-picker'),
+            datePicker: document.getElementById('date-picker') as HTMLInputElement | null,
 
             // Breadcrumb
             breadcrumbContextName: document.getElementById('breadcrumb-context-name'),
@@ -75,17 +154,17 @@ class UIManager {
 
             // Theme
             themeToggleMenu: document.getElementById('theme-toggle-menu'),
-            themeToggleSwitch: document.getElementById('theme-toggle-switch'),
+            themeToggleSwitch: document.getElementById('theme-toggle-switch') as HTMLInputElement | null,
 
             // Settings
-            weekStartSelect: document.getElementById('week-start-select'),
-            timezoneSelect: document.getElementById('timezone-select'),
+            weekStartSelect: document.getElementById('week-start-select') as HTMLSelectElement | null,
+            timezoneSelect: document.getElementById('timezone-select') as HTMLSelectElement | null,
 
             // Mobile navigation
             mobileNotesToggle: document.getElementById('mobile-notes-toggle'),
             mobileCalendarToggle: document.getElementById('mobile-calendar-toggle'),
-            sidebar: document.querySelector('.sidebar'),
-            calendarPanel: document.querySelector('.calendar-panel'),
+            sidebar: document.querySelector('.sidebar') as HTMLElement | null,
+            calendarPanel: document.querySelector('.calendar-panel') as HTMLElement | null,
             sidebarOverlay: document.getElementById('sidebar-overlay'),
             calendarOverlay: document.getElementById('calendar-overlay'),
             sidebarClose: document.getElementById('sidebar-close'),
@@ -93,7 +172,7 @@ class UIManager {
         };
     }
 
-    setupEventListeners() {
+    setupEventListeners(): void {
         // Editor fullscreen button
         const editorFullscreenBtn = document.getElementById('editor-fullscreen-btn');
         if (editorFullscreenBtn) {
@@ -129,7 +208,7 @@ class UIManager {
                     const mm = String(month).padStart(2, '0');
                     const dd = String(day).padStart(2, '0');
 
-                    let formattedDateStr;
+                    let formattedDateStr: string;
                     if (dateFormat === 'MM-DD-YY') {
                         formattedDateStr = `${mm}-${dd}-${yy}`;
                     } else {
@@ -147,7 +226,7 @@ class UIManager {
         // Context selection (desktop)
         // Just update state - the CONTEXT_CHANGED event handler will do the rest
         this.elements.contextSelect?.addEventListener('change', (e) => {
-            const context = e.target.value;
+            const context = (e.target as HTMLSelectElement).value;
             console.log('[UI] Desktop context selector changed:', context);
             contexts.selectContext(context);
         });
@@ -155,14 +234,14 @@ class UIManager {
         // Context selection (mobile)
         // Just update state - the CONTEXT_CHANGED event handler will do the rest
         this.elements.mobileContextSelect?.addEventListener('change', (e) => {
-            const context = e.target.value;
+            const context = (e.target as HTMLSelectElement).value;
             console.log('[UI] Mobile context selector changed:', context);
             contexts.selectContext(context);
         });
 
         // Date picker
         this.elements.datePicker?.addEventListener('change', async (e) => {
-            const dateStr = e.target.value;
+            const dateStr = (e.target as HTMLInputElement).value;
             // Check if this date is already selected
             const currentDate = state.get('selectedDate');
             if (currentDate === dateStr) {
@@ -199,14 +278,14 @@ class UIManager {
         });
 
         this.elements.themeToggleSwitch?.addEventListener('change', (e) => {
-            this.setTheme(e.target.checked ? 'dark' : 'light');
+            this.setTheme((e.target as HTMLInputElement).checked ? 'dark' : 'light');
         });
 
         // Keyboard shortcuts
         this.setupKeyboardShortcuts();
     }
 
-    setupKeyboardShortcuts() {
+    setupKeyboardShortcuts(): void {
         document.addEventListener('keydown', (e) => {
             const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
             const modKey = isMac ? e.metaKey : e.ctrlKey;
@@ -221,7 +300,7 @@ class UIManager {
             // Cmd/Ctrl+S: Force sync
             if (modKey && e.key === 's') {
                 e.preventDefault();
-                events.emit('sync-force');
+                events.emit('sync-force' as any, undefined);
                 return;
             }
 
@@ -246,7 +325,7 @@ class UIManager {
         });
     }
 
-    setupUserDropdown() {
+    setupUserDropdown(): void {
         const userDropdown = document.getElementById('user-dropdown');
         const userDropdownButton = document.getElementById('user-dropdown-button');
         const settingsMenuItem = document.getElementById('settings-menu-item');
@@ -272,12 +351,12 @@ class UIManager {
         signoutMenuItem?.addEventListener('click', (e) => {
             e.preventDefault();
             userDropdown.classList.remove('is-active');
-            window.signOutUser();
+            auth.signOut();
         });
 
         // Close when clicking outside
         document.addEventListener('click', (e) => {
-            if (!userDropdown.contains(e.target)) {
+            if (!userDropdown.contains(e.target as Node)) {
                 userDropdown.classList.remove('is-active');
             }
         });
@@ -290,7 +369,7 @@ class UIManager {
         });
     }
 
-    setupStateSubscriptions() {
+    setupStateSubscriptions(): void {
         // Re-render UI when contexts change
         state.subscribe('contexts', () => {
             this.renderContextsSelect();
@@ -308,7 +387,7 @@ class UIManager {
         });
 
         // Update breadcrumb when context changes
-        state.subscribe('selectedContext', (context) => {
+        state.subscribe('selectedContext', (_context) => {
             this.updateBreadcrumb();
             // Reset virtual scrolling when switching contexts
             this.renderedNotesCount = this.INITIAL_RENDER_COUNT;
@@ -316,9 +395,9 @@ class UIManager {
 
         // Update date picker when selected date changes
         state.subscribe('selectedDate', (newDate) => {
-            if (this.elements.datePicker) {
-                this.elements.datePicker.value = newDate;
-                this.updateDatePickerDisplay(newDate);
+            if (this.elements.datePicker && newDate) {
+                this.elements.datePicker.value = newDate as string;
+                this.updateDatePickerDisplay(newDate as string);
             }
             this.renderNotesList(); // Update active state
             calendar.render();
@@ -371,7 +450,7 @@ class UIManager {
         });
     }
 
-    renderContextsSelect() {
+    renderContextsSelect(): void {
         const contextsList = state.get('contexts');
         const selectedContext = state.get('selectedContext');
 
@@ -399,10 +478,10 @@ class UIManager {
         this.updateContextIndicator();
     }
 
-    updateContextIndicator() {
+    updateContextIndicator(): void {
         // Update desktop indicator
         if (this.elements.contextSelect && this.elements.contextColorIndicator) {
-            const opt = this.elements.contextSelect.options[this.elements.contextSelect.selectedIndex];
+            const opt = this.elements.contextSelect.options[this.elements.contextSelect.selectedIndex] as HTMLOptionElement;
 
             if (opt?.dataset.color && opt.value !== '') {
                 const normalizedColor = this.normalizeToBulmaColor(opt.dataset.color);
@@ -416,7 +495,7 @@ class UIManager {
 
         // Update mobile indicator
         if (this.elements.mobileContextSelect && this.elements.mobileContextColorIndicator) {
-            const opt = this.elements.mobileContextSelect.options[this.elements.mobileContextSelect.selectedIndex];
+            const opt = this.elements.mobileContextSelect.options[this.elements.mobileContextSelect.selectedIndex] as HTMLOptionElement;
 
             if (opt?.dataset.color && opt.value !== '') {
                 const normalizedColor = this.normalizeToBulmaColor(opt.dataset.color);
@@ -429,7 +508,7 @@ class UIManager {
         }
     }
 
-    renderNotesList() {
+    renderNotesList(): void {
         const notesList = state.get('notes');
         const selectedDate = state.get('selectedDate');
         const settings = state.get('userSettings');
@@ -462,7 +541,7 @@ class UIManager {
             const mm = String(month).padStart(2, '0');
             const dd = String(day).padStart(2, '0');
 
-            let dateStr;
+            let dateStr: string;
             if (dateFormat === 'MM-DD-YY') {
                 dateStr = `${mm}-${dd}-${yy}`;
             } else {
@@ -504,7 +583,7 @@ class UIManager {
         this.elements.notesList.querySelectorAll('a[data-date]').forEach(link => {
             link.addEventListener('click', async (e) => {
                 e.preventDefault(); // Prevent default link behavior
-                const dateStr = link.dataset.date;
+                const dateStr = (link as HTMLElement).dataset.date;
                 if (dateStr) {
                     // Check if this date is already selected
                     const currentDate = state.get('selectedDate');
@@ -527,37 +606,35 @@ class UIManager {
         }
     }
 
-    updateEditorState() {
+    updateEditorState(): void {
         // Editor state is now managed by the markdown editor module
         const context = state.get('selectedContext');
-        const contexts = state.get('contexts') || [];
+        const contextsList = state.get('contexts') || [];
 
-        // Import the markdown editor dynamically to avoid circular dependencies
-        import('./markdown-editor.js').then(async ({ markdownEditor }) => {
-            if (context) {
-                markdownEditor.setDisabled(false);
-            } else {
-                // First ensure Quill is loaded before setting placeholder
-                await markdownEditor.ensureQuillLoaded();
-
+        // Update editor state based on context
+        if (context) {
+            markdownEditor.setDisabled(false);
+        } else {
+            // First ensure Quill is loaded before setting placeholder
+            markdownEditor.ensureQuillLoaded().then(() => {
                 markdownEditor.setDisabled(true);
                 markdownEditor.setContent('');
 
                 // If there are no contexts at all, show a message to create the first one
-                if (contexts.length === 0) {
+                if (contextsList.length === 0) {
                     // Wait a bit to ensure setDisabled has applied
                     setTimeout(() => {
                         markdownEditor.setPlaceholderMessage('Click "New Context" to create your first context and start writing notes');
                     }, 100);
                 }
-            }
-        });
+            });
+        }
 
         // Show/hide delete button based on context
         this.updateEditorDeleteButton();
     }
 
-    updateEditorDeleteButton() {
+    updateEditorDeleteButton(): void {
         const editorDeleteBtn = document.getElementById('editor-delete-note-btn');
         const editorFullscreenBtn = document.getElementById('editor-fullscreen-btn');
 
@@ -574,7 +651,7 @@ class UIManager {
         }
     }
 
-    updateSaveIndicator(status) {
+    updateSaveIndicator(status: string): void {
         if (!this.elements.saveIndicator) return;
 
         this.elements.saveIndicator.className = `save-indicator ${status}`;
@@ -582,14 +659,16 @@ class UIManager {
         if (status === 'saved') {
             this.elements.saveIndicator.textContent = 'Saved locally ✓';
             setTimeout(() => {
-                this.elements.saveIndicator.textContent = '';
+                if (this.elements.saveIndicator) {
+                    this.elements.saveIndicator.textContent = '';
+                }
             }, 2000);
         } else {
             this.elements.saveIndicator.textContent = '';
         }
     }
 
-    updateSyncStatus({ pending, syncing }) {
+    updateSyncStatus({ pending, syncing }: SyncStatusOptions): void {
         if (!this.elements.syncStatus || !this.elements.syncStatusText) return;
 
         // Show sync indicator when there are pending operations or actively syncing
@@ -608,13 +687,15 @@ class UIManager {
         } else {
             // Hide after successful sync with a brief delay
             setTimeout(() => {
-                this.elements.syncStatus.style.display = 'none';
-                this.elements.syncStatus.classList.remove('is-syncing', 'is-pending');
+                if (this.elements.syncStatus) {
+                    this.elements.syncStatus.style.display = 'none';
+                    this.elements.syncStatus.classList.remove('is-syncing', 'is-pending');
+                }
             }, 1000);
         }
     }
 
-    setTheme(theme) {
+    setTheme(theme: string): void {
         document.documentElement.setAttribute('data-theme', theme);
         if (this.elements.themeToggleSwitch) {
             this.elements.themeToggleSwitch.checked = theme === 'dark';
@@ -623,7 +704,7 @@ class UIManager {
         localStorage.setItem('theme', theme);
     }
 
-    updateThemeIcon() {
+    updateThemeIcon(): void {
         const theme = document.documentElement.getAttribute('data-theme');
         const themeIcon = this.elements.themeToggleMenu?.querySelector('.material-symbols-outlined');
         if (themeIcon) {
@@ -631,7 +712,7 @@ class UIManager {
         }
     }
 
-    showApp(skipAnimation = false) {
+    showApp(_skipAnimation: boolean = false): void {
         console.log('[UI] showApp called');
         console.log('[UI] authSection:', this.elements.authSection);
         console.log('[UI] appSection:', this.elements.appSection);
@@ -663,15 +744,15 @@ class UIManager {
         // Update breadcrumb and markdown editor visibility
         this.updateBreadcrumbVisibility();
         this.updateMarkdownEditorVisibility();
-        
+
         // Update new context button visibility
         this.updateNewContextButtonVisibility();
 
         // Check if user has no contexts (new user or deleted all contexts)
         // We use hasNoContexts from the backend response, NOT from local state
         // because local state might not be loaded yet
-        const hasNoContexts = state.get('hasNoContexts');
-        const isDevelopment = window.__ENV__ === 'development';
+        const hasNoContexts = (state as any).get('hasNoContexts');
+        const isDevelopment = (window as any).__ENV__ === 'development';
 
         console.log('[UI] showApp - hasNoContexts:', hasNoContexts, 'isDevelopment:', isDevelopment);
 
@@ -690,7 +771,7 @@ class UIManager {
         }
     }
 
-    hideApp() {
+    hideApp(): void {
         if (!this.elements.authSection || !this.elements.appSection) return;
 
         // Simple: hide app, show auth
@@ -698,61 +779,64 @@ class UIManager {
         this.elements.authSection.classList.add('visible');
     }
 
-    showError(message, options = {}) {
+    showError(message: string | { title?: string; message?: string; duration?: number }, options: NotificationOptions = {}): void {
         // Handle different error types
         let title = 'Error';
         let duration = 7000;
+        let msg = '';
 
         if (typeof message === 'object') {
             // Structured error
             title = message.title || 'Error';
-            message = message.message || 'An error occurred';
+            msg = message.message || 'An error occurred';
             duration = message.duration || 7000;
+        } else {
+            msg = message;
         }
 
         // Check if it's a network error
-        if (message.includes('network') || message.includes('offline')) {
+        if (msg.includes('network') || msg.includes('offline')) {
             title = 'Connection Error';
             duration = 10000; // Longer for network issues
         }
 
-        notifications.error(message, { title, duration, ...options });
+        notifications.error(msg, { title, duration, ...options });
     }
 
-    showSuccess(message, options = {}) {
+    showSuccess(message: string, options: NotificationOptions = {}): void {
         notifications.success(message, { duration: 3000, ...options });
     }
 
-    showWarning(message, options = {}) {
+    showWarning(message: string, options: NotificationOptions = {}): void {
         notifications.warning(message, { duration: 5000, ...options });
     }
 
-    showInfo(message, options = {}) {
+    showInfo(message: string, options: NotificationOptions = {}): void {
         notifications.info(message, { duration: 4000, ...options });
     }
 
     // Modal methods
-    showContextModal() {
+    showContextModal(): void {
         this.elements.contextModal?.classList.add('is-active');
-        const nameInput = document.getElementById('context-name');
-        const colorInput = document.getElementById('context-color');
+        const nameInput = document.getElementById('context-name') as HTMLInputElement | null;
+        const colorInput = document.getElementById('context-color') as HTMLInputElement | null;
         if (nameInput) nameInput.value = '';
         if (colorInput) colorInput.value = 'primary';
-        
+
         // Setup color buttons handlers
         this.setupColorButtons();
-        
+
         // Reset to primary
         this.selectColorButton('primary');
-        
+
         nameInput?.focus();
     }
 
-    closeContextModal() {
+    closeContextModal(): void {
         this.elements.contextModal?.classList.remove('is-active');
     }
 
-    showSettingsModal() {
+    showSettingsModal(): void {
         const settings = state.get('userSettings');
 
         if (this.elements.weekStartSelect) {
@@ -761,29 +845,29 @@ class UIManager {
         if (this.elements.timezoneSelect) {
             this.elements.timezoneSelect.value = settings.timezone;
         }
-        const dateFormatSelect = document.getElementById('date-format-select');
+        const dateFormatSelect = document.getElementById('date-format-select') as HTMLSelectElement | null;
         if (dateFormatSelect) {
             dateFormatSelect.value = settings.dateFormat || 'DD-MM-YY';
         }
-        const uniqueContextModeSwitch = document.getElementById('unique-context-mode-switch');
+        const uniqueContextModeSwitch = document.getElementById('unique-context-mode-switch') as HTMLInputElement | null;
         if (uniqueContextModeSwitch) {
             uniqueContextModeSwitch.checked = settings.uniqueContextMode || false;
         }
-        const showBreadcrumbSwitch = document.getElementById('show-breadcrumb-switch');
+        const showBreadcrumbSwitch = document.getElementById('show-breadcrumb-switch') as HTMLInputElement | null;
         if (showBreadcrumbSwitch) {
             showBreadcrumbSwitch.checked = settings.showBreadcrumb === true;
         }
-        const showMarkdownEditorSwitch = document.getElementById('show-markdown-editor-switch');
+        const showMarkdownEditorSwitch = document.getElementById('show-markdown-editor-switch') as HTMLInputElement | null;
         if (showMarkdownEditorSwitch) {
             showMarkdownEditorSwitch.checked = settings.showMarkdownEditor === true;
         }
-        const hideNewContextButtonSwitch = document.getElementById('hide-new-context-button-switch');
+        const hideNewContextButtonSwitch = document.getElementById('hide-new-context-button-switch') as HTMLInputElement | null;
         if (hideNewContextButtonSwitch) {
             hideNewContextButtonSwitch.checked = settings.hideNewContextButton === true;
         }
 
         // Reset accordion to collapsed state
-        const accordionContent = document.getElementById('contexts-accordion-content');
+        const accordionContent = document.getElementById('contexts-accordion-content') as HTMLElement | null;
         const accordionIcon = document.getElementById('contexts-accordion-icon');
         if (accordionContent) {
             accordionContent.style.display = 'none';
@@ -798,9 +882,9 @@ class UIManager {
         this.renderContextsEditList();
 
         // Reset save button state
-        const saveBtn = document.getElementById('settings-save-btn');
+        const saveBtn = document.getElementById('settings-save-btn') as HTMLButtonElement | null;
         const saveIcon = document.getElementById('settings-save-icon');
-        const saveSpinner = document.getElementById('settings-save-spinner');
+        const saveSpinner = document.getElementById('settings-save-spinner') as HTMLElement | null;
         const saveText = document.getElementById('settings-save-text');
 
         if (saveBtn) saveBtn.disabled = false;
@@ -815,9 +899,9 @@ class UIManager {
         this.elements.settingsModal?.classList.add('is-active');
     }
 
-    closeSettingsModal() {
+    closeSettingsModal(): void {
         // Reset accordion to collapsed state before closing
-        const accordionContent = document.getElementById('contexts-accordion-content');
+        const accordionContent = document.getElementById('contexts-accordion-content') as HTMLElement | null;
         const accordionIcon = document.getElementById('contexts-accordion-icon');
         if (accordionContent) {
             accordionContent.style.display = 'none';
@@ -827,17 +911,17 @@ class UIManager {
             const iconElement = accordionIcon.querySelector('.material-symbols-outlined');
             if (iconElement) iconElement.textContent = 'expand_more';
         }
-        
+
         this.elements.settingsModal?.classList.remove('is-active');
     }
 
-    closeOnboardingModal() {
+    closeOnboardingModal(): void {
         this.elements.onboardingModal?.classList.remove('is-active');
         // No need to store in localStorage anymore since we use backend isFirstLogin flag
     }
 
-    showDeleteNoteModal(context, date, formattedDate) {
-        const modal = document.getElementById('delete-note-modal');
+    showDeleteNoteModal(context: string, date: string, formattedDate: string): void {
+        const modal = document.getElementById('delete-note-modal') as HTMLElement & { dataset: { context?: string; date?: string } } | null;
         const message = document.getElementById('delete-note-message');
 
         if (modal && message) {
@@ -852,8 +936,8 @@ class UIManager {
         }
     }
 
-    closeDeleteNoteModal() {
-        const modal = document.getElementById('delete-note-modal');
+    closeDeleteNoteModal(): void {
+        const modal = document.getElementById('delete-note-modal') as HTMLElement & { dataset: { context?: string; date?: string } } | null;
         if (modal) {
             modal.classList.remove('is-active');
             delete modal.dataset.context;
@@ -861,7 +945,7 @@ class UIManager {
         }
     }
 
-    closeAllModals() {
+    closeAllModals(): void {
         this.closeContextModal();
         this.closeSettingsModal();
         this.closeOnboardingModal();
@@ -869,18 +953,18 @@ class UIManager {
     }
 
     // Clock
-    startClock() {
+    startClock(): void {
         this.updateCurrentDateTime();
         setInterval(() => this.updateCurrentDateTime(), 1000);
     }
 
-    updateCurrentDateTime() {
+    updateCurrentDateTime(): void {
         const settings = state.get('userSettings');
         const timezone = settings.timezone || 'UTC';
         const serverTimeOffset = state.get('serverTimeOffset');
         const now = new Date(Date.now() + serverTimeOffset);
 
-        const timeOptions = {
+        const timeOptions: Intl.DateTimeFormatOptions = {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
@@ -888,7 +972,7 @@ class UIManager {
             timeZone: timezone
         };
 
-        const dateOptions = {
+        const dateOptions: Intl.DateTimeFormatOptions = {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
@@ -907,14 +991,14 @@ class UIManager {
         }
 
         // Check if day changed and update calendar
-        const currentDate = state.get('today');
+        const currentDate = (state as any).get('today') as string;
         if (this.lastKnownDate && this.lastKnownDate !== currentDate) {
             calendar.render();
         }
-        this.lastKnownDate = currentDate;
+        this.lastKnownDate = currentDate as string | null;
     }
 
-    updateDatePickerDisplay(dateStr) {
+    updateDatePickerDisplay(dateStr: string): void {
         const displayElement = document.getElementById('date-picker-display');
         if (!displayElement || !dateStr) return;
 
@@ -928,7 +1012,7 @@ class UIManager {
         const mm = String(month).padStart(2, '0');
         const dd = String(day).padStart(2, '0');
 
-        let formattedDate;
+        let formattedDate: string;
         if (dateFormat === 'MM-DD-YY') {
             formattedDate = `${mm}/${dd}/${yy}`;
         } else {
@@ -938,7 +1022,7 @@ class UIManager {
         displayElement.textContent = formattedDate;
     }
 
-    updateContextSelectorVisibility() {
+    updateContextSelectorVisibility(): void {
         const settings = state.get('userSettings');
         const uniqueContextMode = settings.uniqueContextMode || false;
 
@@ -965,18 +1049,18 @@ class UIManager {
         }
     }
 
-    updateBreadcrumbVisibility() {
+    updateBreadcrumbVisibility(): void {
         const settings = state.get('userSettings');
         const showBreadcrumb = settings.showBreadcrumb === true;
-        
+
         const breadcrumb = document.getElementById('drive-breadcrumb');
         const mainSection = document.querySelector('.main-section');
-        
+
         // Show/hide breadcrumb
         if (breadcrumb) {
             breadcrumb.style.display = showBreadcrumb ? '' : 'none';
         }
-        
+
         // Set data attribute that CSS will use to adjust spacing
         if (mainSection) {
             if (showBreadcrumb) {
@@ -987,35 +1071,31 @@ class UIManager {
         }
     }
 
-    updateMarkdownEditorVisibility() {
+    updateMarkdownEditorVisibility(): void {
         const settings = state.get('userSettings');
         const showMarkdownEditor = settings.showMarkdownEditor === true;
 
         // Get the Quill toolbar
-        const toolbar = document.querySelector('.ql-toolbar');
+        const toolbar = document.querySelector('.ql-toolbar') as HTMLElement | null;
         if (toolbar) {
             toolbar.style.display = showMarkdownEditor ? '' : 'none';
         }
 
         // The editor itself should remain enabled based on context selection,
         // regardless of toolbar visibility
-        import('./markdown-editor.js').then(({ markdownEditor }) => {
-            if (markdownEditor.editor) {
-                const context = state.get('selectedContext');
-                // Editor should be enabled if we have a context, regardless of toolbar visibility
-                markdownEditor.editor.enable(context ? true : false);
-            }
-        });
+        const context = state.get('selectedContext');
+        // Editor should be enabled if we have a context, regardless of toolbar visibility
+        markdownEditor.setDisabled(context ? false : true);
     }
 
-    updateNewContextButtonVisibility() {
+    updateNewContextButtonVisibility(): void {
         const settings = state.get('userSettings');
         const hideNewContextButton = settings.hideNewContextButton === true;
-        
+
         // Get new context buttons (both desktop and mobile)
         const desktopNewContextBtn = document.getElementById('desktop-new-context-btn');
         const mobileNewContextBtn = document.getElementById('mobile-new-context-btn');
-        
+
         // Hide or show buttons
         if (desktopNewContextBtn) {
             desktopNewContextBtn.style.display = hideNewContextButton ? 'none' : '';
@@ -1025,7 +1105,7 @@ class UIManager {
         }
     }
 
-    renderContextsEditList() {
+    renderContextsEditList(): void {
         const contextsList = state.get('contexts');
         const container = document.getElementById('contexts-edit-list');
 
@@ -1036,7 +1116,7 @@ class UIManager {
             return;
         }
 
-        container.innerHTML = contextsList.map((ctx, index) => {
+        container.innerHTML = contextsList.map((ctx, _index) => {
             // Normalize old hex colors to Bulma colors
             const normalizedColor = this.normalizeToBulmaColor(ctx.color);
 
@@ -1057,7 +1137,7 @@ class UIManager {
                         </span>
                     </button>
                     <button class="button is-small context-action-btn context-delete-btn"
-                            onclick="window.showDeleteContextModal('${ctx.id}', '${ctx.name.replace(/'/g, "\\\'")}')"
+                            onclick="window.showDeleteContextModal('${ctx.id}', '${ctx.name.replace(/'/g, "\\'")}')"
                             title="Delete context"
                             style="padding: 0.35rem; border: none; background: transparent; border-radius: 50%; width: 32px; height: 32px;">
                         <span class="icon is-small">
@@ -1070,8 +1150,8 @@ class UIManager {
         }).join('');
     }
 
-    getColorLabel(color) {
-        const labels = {
+    getColorLabel(color: string): string {
+        const labels: { [key: string]: string } = {
             'text': 'Text (Gray)',
             'link': 'Link (Blue)',
             'primary': 'Primary (Cyan)',
@@ -1083,84 +1163,84 @@ class UIManager {
         return labels[color] || color;
     }
 
-    setupColorButtons() {
-        const hiddenInput = document.getElementById('context-color');
-        
+    setupColorButtons(): void {
+        const hiddenInput = document.getElementById('context-color') as HTMLInputElement | null;
+
         // Get fresh button references each time
         const buttons = document.querySelectorAll('#context-color-buttons .color-btn');
         if (!buttons.length) return;
-        
+
         buttons.forEach(button => {
             // Remove old listeners by cloning
             const newButton = button.cloneNode(true);
-            button.parentNode.replaceChild(newButton, button);
+            button.parentNode!.replaceChild(newButton, button);
         });
-        
+
         // Get fresh references after cloning
         const colorButtons = document.querySelectorAll('#context-color-buttons .color-btn');
-        
+
         colorButtons.forEach(button => {
             button.addEventListener('click', (e) => {
                 e.preventDefault();
-                const color = button.dataset.color;
-                
+                const color = (button as HTMLElement).dataset.color;
+
                 // Update hidden input
-                if (hiddenInput) hiddenInput.value = color;
-                
+                if (hiddenInput && color) hiddenInput.value = color;
+
                 // Update active state - get fresh references again
                 const allButtons = document.querySelectorAll('#context-color-buttons .color-btn');
                 allButtons.forEach(btn => {
-                    btn.classList.remove('is-active');
-                    btn.style.border = '3px solid transparent';
-                    btn.style.borderRadius = '8px';
+                    (btn as HTMLElement).classList.remove('is-active');
+                    (btn as HTMLElement).style.border = '3px solid transparent';
+                    (btn as HTMLElement).style.borderRadius = '8px';
                 });
-                
-                button.classList.add('is-active');
-                button.style.border = '3px solid var(--bulma-text)';
-                button.style.borderRadius = '8px';
+
+                (button as HTMLElement).classList.add('is-active');
+                (button as HTMLElement).style.border = '3px solid var(--bulma-text)';
+                (button as HTMLElement).style.borderRadius = '8px';
             });
         });
     }
 
-    selectColorButton(color) {
+    selectColorButton(color: string): void {
         const colorButtons = document.querySelectorAll('#context-color-buttons .color-btn');
-        const hiddenInput = document.getElementById('context-color');
-        
+        const hiddenInput = document.getElementById('context-color') as HTMLInputElement | null;
+
         if (hiddenInput) hiddenInput.value = color;
-        
+
         colorButtons.forEach(btn => {
-            btn.classList.remove('is-active');
-            btn.style.border = '3px solid transparent';
-            btn.style.borderRadius = '8px';
-            
-            if (btn.dataset.color === color) {
-                btn.classList.add('is-active');
-                btn.style.border = `3px solid var(--bulma-text)`;
-                btn.style.borderRadius = '8px';
+            (btn as HTMLElement).classList.remove('is-active');
+            (btn as HTMLElement).style.border = '3px solid transparent';
+            (btn as HTMLElement).style.borderRadius = '8px';
+
+            if ((btn as HTMLElement).dataset.color === color) {
+                (btn as HTMLElement).classList.add('is-active');
+                (btn as HTMLElement).style.border = `3px solid var(--bulma-text)`;
+                (btn as HTMLElement).style.borderRadius = '8px';
             }
         });
     }
 
-    normalizeToBulmaColor(color) {
+    normalizeToBulmaColor(color: string): string {
         // If it's already a Bulma color name, return it
         const bulmaColors = ['text', 'link', 'primary', 'info', 'success', 'warning', 'danger'];
         if (bulmaColors.includes(color)) {
             return color;
         }
-        
+
         // Map old hex colors to closest Bulma color
-        const hexToColor = {
+        const hexToColor: { [key: string]: string } = {
             '#485fc7': 'primary',
             '#3e8ed0': 'info',
             '#48c78e': 'success',
             '#ffe08a': 'warning',
             '#f14668': 'danger'
         };
-        
+
         return hexToColor[color] || 'primary';
     }
 
-    setupMobileNavigation() {
+    setupMobileNavigation(): void {
         // Toggle sidebar (notes list)
         this.elements.mobileNotesToggle?.addEventListener('click', () => {
             this.toggleMobileSidebar();
@@ -1193,7 +1273,7 @@ class UIManager {
         // Close mobile panels when selecting a note
         if (this.elements.notesList) {
             this.elements.notesList.addEventListener('click', (e) => {
-                if (e.target.tagName === 'A' && window.innerWidth <= 768) {
+                if ((e.target as HTMLElement).tagName === 'A' && window.innerWidth <= 768) {
                     this.closeMobileSidebar();
                 }
             });
@@ -1222,7 +1302,7 @@ class UIManager {
         });
     }
 
-    toggleMobileSidebar() {
+    toggleMobileSidebar(): void {
         if (!this.elements.sidebar || !this.elements.sidebarOverlay) return;
 
         // Only work on mobile screens
@@ -1248,7 +1328,7 @@ class UIManager {
         }
     }
 
-    closeMobileSidebar() {
+    closeMobileSidebar(): void {
         if (!this.elements.sidebar || !this.elements.sidebarOverlay) return;
 
         this.elements.sidebar.classList.remove('active');
@@ -1256,7 +1336,7 @@ class UIManager {
         document.body.style.overflow = '';
     }
 
-    toggleMobileCalendar() {
+    toggleMobileCalendar(): void {
         if (!this.elements.calendarPanel || !this.elements.calendarOverlay) return;
 
         // Only work on mobile screens
@@ -1282,7 +1362,7 @@ class UIManager {
         }
     }
 
-    closeMobileCalendar() {
+    closeMobileCalendar(): void {
         if (!this.elements.calendarPanel || !this.elements.calendarOverlay) return;
 
         this.elements.calendarPanel.classList.remove('active');
@@ -1290,7 +1370,7 @@ class UIManager {
         document.body.style.overflow = '';
     }
 
-    updateBreadcrumb() {
+    updateBreadcrumb(): void {
         const context = state.get('selectedContext');
         const selectedDate = state.get('selectedDate');
         const settings = state.get('userSettings');
@@ -1317,7 +1397,7 @@ class UIManager {
             const mm = String(month).padStart(2, '0');
             const dd = String(day).padStart(2, '0');
 
-            let dateStr;
+            let dateStr: string;
             if (dateFormat === 'MM-DD-YY') {
                 dateStr = `${mm}-${dd}-${yy}`;
             } else {
@@ -1330,7 +1410,7 @@ class UIManager {
         }
     }
 
-    openFullscreenNote() {
+    openFullscreenNote(): void {
         const context = state.get('selectedContext');
         const selectedDate = state.get('selectedDate');
 
@@ -1353,7 +1433,7 @@ class UIManager {
         const mm = String(month).padStart(2, '0');
         const dd = String(day).padStart(2, '0');
 
-        let dateStr;
+        let dateStr: string;
         if (dateFormat === 'MM-DD-YY') {
             dateStr = `${mm}-${dd}-${yy}`;
         } else {
@@ -1373,47 +1453,45 @@ class UIManager {
         dateEl.textContent = formattedDate;
 
         // Get current note content using the markdown editor
-        import('./markdown-editor.js').then(({ markdownEditor }) => {
-            const content = markdownEditor.getContent();
+        const content = markdownEditor.getContent();
 
-            // Create a read-only Quill instance for fullscreen
-            if (window.Quill) {
-                // Clear previous instance if exists
-                editorEl.innerHTML = '';
+        // Create a read-only Quill instance for fullscreen
+        if ((window as any).Quill) {
+            // Clear previous instance if exists
+            editorEl.innerHTML = '';
 
-                const fullscreenQuill = new window.Quill(editorEl, {
-                    theme: 'snow',
-                    readOnly: true,
-                    modules: {
-                        toolbar: false
-                    }
-                });
-
-                fullscreenQuill.root.innerHTML = content;
-
-                // Style the editor
-                fullscreenQuill.root.style.fontSize = '16px';
-                fullscreenQuill.root.style.lineHeight = '1.6';
-            } else {
-                // Fallback if Quill not loaded
-                editorEl.innerHTML = content;
-            }
-
-            // Show modal
-            modal.classList.add('is-active');
-
-            // Add escape key listener
-            const escapeHandler = (e) => {
-                if (e.key === 'Escape') {
-                    this.closeFullscreenNote();
-                    document.removeEventListener('keydown', escapeHandler);
+            const fullscreenQuill = new (window as any).Quill(editorEl, {
+                theme: 'snow',
+                readOnly: true,
+                modules: {
+                    toolbar: false
                 }
-            };
-            document.addEventListener('keydown', escapeHandler);
-        });
+            });
+
+            fullscreenQuill.root.innerHTML = content;
+
+            // Style the editor
+            fullscreenQuill.root.style.fontSize = '16px';
+            fullscreenQuill.root.style.lineHeight = '1.6';
+        } else {
+            // Fallback if Quill not loaded
+            editorEl.innerHTML = content;
+        }
+
+        // Show modal
+        modal.classList.add('is-active');
+
+        // Add escape key listener
+        const escapeHandler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                this.closeFullscreenNote();
+                document.removeEventListener('keydown', escapeHandler);
+            }
+        };
+        document.addEventListener('keydown', escapeHandler);
     }
 
-    closeFullscreenNote() {
+    closeFullscreenNote(): void {
         const modal = document.getElementById('fullscreen-note-modal');
         if (modal) {
             modal.classList.remove('is-active');
@@ -1422,3 +1500,285 @@ class UIManager {
 }
 
 export const ui = new UIManager();
+
+// Expose globally for browser compatibility and HTML onclick handlers
+if (typeof window !== 'undefined') {
+    (window as any).ui = ui;
+
+    // Context modal handlers
+    (window as any).showNewContextModal = () => ui.showContextModal();
+    (window as any).closeContextModal = () => ui.closeContextModal();
+
+    (window as any).createContext = async () => {
+        const nameInput = document.getElementById('context-name') as HTMLInputElement | null;
+        const colorInput = document.getElementById('context-color') as HTMLInputElement | null;
+
+        const name = nameInput?.value.trim();
+        const color = colorInput?.value;
+
+        if (!name) return;
+
+        await contexts.createContext(name, color);
+        ui.closeContextModal();
+
+        await notes.loadNotesList(name);
+        const selectedDate = state.get('selectedDate');
+        if (selectedDate) {
+            await notes.loadNote(name, selectedDate);
+        }
+    };
+
+    // Settings modal handlers
+    (window as any).showSettingsModal = () => ui.showSettingsModal();
+    (window as any).closeSettingsModal = () => ui.closeSettingsModal();
+
+    (window as any).saveSettings = async () => {
+        const saveBtn = document.getElementById('settings-save-btn') as HTMLButtonElement | null;
+        const saveIcon = document.getElementById('settings-save-icon');
+        const saveSpinner = document.getElementById('settings-save-spinner');
+        const saveText = document.getElementById('settings-save-text');
+        const cancelBtn = document.getElementById('settings-cancel-btn') as HTMLButtonElement | null;
+
+        const weekStartSelect = document.getElementById('week-start-select') as HTMLSelectElement | null;
+        const timezoneSelect = document.getElementById('timezone-select') as HTMLSelectElement | null;
+        const dateFormatSelect = document.getElementById('date-format-select') as HTMLSelectElement | null;
+        const uniqueContextModeSwitch = document.getElementById('unique-context-mode-switch') as HTMLInputElement | null;
+        const showBreadcrumbSwitch = document.getElementById('show-breadcrumb-switch') as HTMLInputElement | null;
+        const showMarkdownEditorSwitch = document.getElementById('show-markdown-editor-switch') as HTMLInputElement | null;
+        const hideNewContextButtonSwitch = document.getElementById('hide-new-context-button-switch') as HTMLInputElement | null;
+        const currentSettings = state.get('userSettings');
+
+        const weekStart = parseInt(weekStartSelect?.value || '0');
+        const timezone = timezoneSelect?.value || 'UTC';
+        const dateFormat = dateFormatSelect?.value || 'DD-MM-YY';
+        const uniqueContextMode = uniqueContextModeSwitch?.checked || false;
+        const showBreadcrumb = showBreadcrumbSwitch?.checked === true;
+        const showMarkdownEditor = showMarkdownEditorSwitch?.checked === true;
+        const hideNewContextButton = hideNewContextButtonSwitch?.checked === true;
+        const theme = currentSettings.theme || 'dark';
+
+        // Show loading state
+        if (saveBtn) saveBtn.disabled = true;
+        if (cancelBtn) cancelBtn.disabled = true;
+        if (saveIcon) (saveIcon as HTMLElement).style.display = 'none';
+        if (saveSpinner) (saveSpinner as HTMLElement).style.display = 'inline-block';
+        if (saveText) saveText.textContent = 'Saving...';
+
+        try {
+            await api.updateSettings({ theme, weekStart, timezone, dateFormat, uniqueContextMode, showBreadcrumb, showMarkdownEditor, hideNewContextButton });
+
+            state.set('userSettings', { theme, weekStart, timezone, dateFormat, uniqueContextMode, showBreadcrumb, showMarkdownEditor, hideNewContextButton });
+            calendar.render();
+
+            // Show success state briefly
+            if (saveText) saveText.textContent = 'Saved!';
+            if (saveSpinner) (saveSpinner as HTMLElement).style.display = 'none';
+            if (saveIcon) {
+                (saveIcon as HTMLElement).style.display = 'inline-flex';
+                const iconEl = saveIcon.querySelector('.material-symbols-outlined');
+                if (iconEl) iconEl.textContent = 'check_circle';
+            }
+
+            // Wait a bit before closing to show success
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            ui.closeSettingsModal();
+
+            // Re-render notes list to update date format
+            ui.renderNotesList();
+
+            // Update UI based on unique context mode
+            ui.updateContextSelectorVisibility();
+
+            // Update breadcrumb and markdown editor visibility
+            ui.updateBreadcrumbVisibility();
+            ui.updateMarkdownEditorVisibility();
+
+            // Update new context button visibility
+            ui.updateNewContextButtonVisibility();
+
+            // If unique context mode is enabled, select first context
+            if (uniqueContextMode) {
+                const contextsList = state.get('contexts');
+                if (contextsList && contextsList.length > 0) {
+                    contexts.selectContext(contextsList[0].name);
+                    notes.setTodayDate();
+                    notes.loadNotesList(contextsList[0].name);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to save settings:', error);
+            notifications.error('Failed to save settings');
+
+            // Reset button state on error
+            if (saveText) saveText.textContent = 'Save';
+            if (saveSpinner) (saveSpinner as HTMLElement).style.display = 'none';
+            if (saveIcon) {
+                (saveIcon as HTMLElement).style.display = 'inline-flex';
+                const iconEl = saveIcon.querySelector('.material-symbols-outlined');
+                if (iconEl) iconEl.textContent = 'check';
+            }
+        } finally {
+            // Re-enable buttons
+            if (saveBtn) saveBtn.disabled = false;
+            if (cancelBtn) cancelBtn.disabled = false;
+        }
+    };
+
+    // Onboarding modal handlers
+    (window as any).closeOnboardingModal = () => ui.closeOnboardingModal();
+
+    // Delete note modal handlers
+    (window as any).closeDeleteNoteModal = () => ui.closeDeleteNoteModal();
+
+    (window as any).confirmDeleteNote = async () => {
+        const modal = document.getElementById('delete-note-modal') as HTMLElement & { dataset: { context?: string; date?: string } } | null;
+        if (!modal) return;
+
+        const context = modal.dataset.context;
+        const dateStr = modal.dataset.date;
+
+        if (context && dateStr) {
+            // Close modal first
+            ui.closeDeleteNoteModal();
+
+            // Delete note immediately (notes module will handle UI updates)
+            await notes.deleteNote(context, dateStr);
+        }
+    };
+
+    // Edit context modal handlers
+    (window as any).showEditContextModal = (contextId: string) => {
+        const contextsList = state.get('contexts');
+        const context = contextsList.find(c => c.id === contextId);
+        if (!context) return;
+
+        const modal = document.getElementById('edit-context-modal') as HTMLElement & { dataset: { contextId?: string } } | null;
+        const nameInput = document.getElementById('edit-context-name') as HTMLInputElement | null;
+        const colorValue = document.getElementById('edit-context-color-value') as HTMLInputElement | null;
+        const colorsContainer = document.getElementById('edit-context-colors');
+
+        if (!modal || !nameInput || !colorValue || !colorsContainer) return;
+
+        // Set values
+        nameInput.value = context.name;
+        const normalizedColor = ui.normalizeToBulmaColor(context.color);
+        colorValue.value = normalizedColor;
+
+        // Render color buttons
+        const colors = ['text', 'link', 'primary', 'info', 'success', 'warning', 'danger'];
+        colorsContainer.innerHTML = colors.map(color => {
+            const isActive = normalizedColor === color;
+            const borderStyle = isActive ? 'border: 3px solid var(--bulma-text)' : 'border: 3px solid transparent';
+            return `
+                <button type="button" class="button color-btn ${isActive ? 'is-active' : ''}"
+                        data-color="${color}"
+                        onclick="window.selectEditContextColor('${color}')"
+                        title="${ui.getColorLabel(color)}"
+                        style="width: 32px; height: 32px; padding: 3px; ${borderStyle}; border-radius: 6px;">
+                    <span style="display: block; width: 100%; height: 100%; background: var(--bulma-${color}); border-radius: 4px;"></span>
+                </button>
+            `;
+        }).join('');
+
+        // Store context ID and show modal
+        modal.dataset.contextId = contextId;
+        modal.classList.add('is-active');
+    };
+
+    (window as any).selectEditContextColor = (color: string) => {
+        const colorValue = document.getElementById('edit-context-color-value') as HTMLInputElement | null;
+        if (!colorValue) return;
+
+        colorValue.value = color;
+
+        // Update button states
+        const buttons = document.querySelectorAll('#edit-context-colors .color-btn');
+        buttons.forEach(btn => {
+            const btnColor = (btn as HTMLElement).dataset.color;
+            if (btnColor === color) {
+                btn.classList.add('is-active');
+                (btn as HTMLElement).style.border = '3px solid var(--bulma-text)';
+            } else {
+                btn.classList.remove('is-active');
+                (btn as HTMLElement).style.border = '3px solid transparent';
+            }
+        });
+    };
+
+    (window as any).closeEditContextModal = () => {
+        const modal = document.getElementById('edit-context-modal') as HTMLElement & { dataset: { contextId?: string } } | null;
+        if (modal) {
+            modal.classList.remove('is-active');
+            delete modal.dataset.contextId;
+        }
+    };
+
+    (window as any).confirmEditContext = async () => {
+        const modal = document.getElementById('edit-context-modal') as HTMLElement & { dataset: { contextId?: string } } | null;
+        if (!modal) return;
+
+        const contextId = modal.dataset.contextId;
+        const nameInput = document.getElementById('edit-context-name') as HTMLInputElement | null;
+        const colorValue = document.getElementById('edit-context-color-value') as HTMLInputElement | null;
+
+        if (!contextId || !nameInput || !colorValue) return;
+
+        const name = nameInput.value.trim();
+        const color = colorValue.value;
+
+        if (!name) {
+            alert('Please enter a context name');
+            return;
+        }
+
+        // Close modal
+        (window as any).closeEditContextModal();
+
+        // Update context
+        await contexts.updateContext(contextId, name, color);
+
+        // Refresh UI
+        ui.renderContextsEditList();
+        ui.renderContextsSelect();
+    };
+
+    // Delete context modal handlers
+    (window as any).showDeleteContextModal = (contextId: string, contextName: string) => {
+        const modal = document.getElementById('delete-context-modal') as HTMLElement & { dataset: { contextId?: string } } | null;
+        const nameElement = document.getElementById('delete-context-name');
+
+        if (modal && nameElement) {
+            nameElement.textContent = contextName;
+            modal.dataset.contextId = contextId;
+            modal.classList.add('is-active');
+        }
+    };
+
+    (window as any).closeDeleteContextModal = () => {
+        const modal = document.getElementById('delete-context-modal') as HTMLElement & { dataset: { contextId?: string } } | null;
+        if (modal) {
+            modal.classList.remove('is-active');
+            delete modal.dataset.contextId;
+        }
+    };
+
+    (window as any).confirmDeleteContext = async () => {
+        const modal = document.getElementById('delete-context-modal') as HTMLElement & { dataset: { contextId?: string } } | null;
+        if (!modal) return;
+
+        const contextId = modal.dataset.contextId;
+
+        if (contextId) {
+            // Close modal first
+            (window as any).closeDeleteContextModal();
+
+            // Delete context (will also delete all its notes)
+            await contexts.deleteContext(contextId);
+
+            // Refresh UI
+            ui.renderContextsEditList();
+            ui.renderContextsSelect();
+        }
+    };
+}

@@ -5,7 +5,7 @@ script initGlobalVars(googleClientID string, env string) {
 	window.__ENV__ = env;
 }
 
-templ Base(title string, googleClientID string, env string) {
+templ Base(title string, googleClientID string, env string, mainScript string, legacyPolyfills string, legacyMain string) {
 	<!DOCTYPE html>
 	<html lang="en" data-theme="dark">
 		<head>
@@ -73,7 +73,17 @@ templ Base(title string, googleClientID string, env string) {
 			{ children... }
 			<!-- Service Worker registration -->
 			<script src="https://accounts.google.com/gsi/client" async defer></script>
-			<script type="module" src="/static/js/main.js"></script>
+			<!-- Modern bundle (module) -->
+			if mainScript != "" {
+				<script type="module" src={ mainScript }></script>
+			}
+			<!-- Legacy bundle for older browsers -->
+			if legacyPolyfills != "" {
+				<script nomodule src={ legacyPolyfills }></script>
+			}
+			if legacyMain != "" {
+				<script nomodule src={ legacyMain }></script>
+			}
 			<script>
 				// Service Worker registration
 				if ('serviceWorker' in navigator) {

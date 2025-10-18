@@ -3,6 +3,8 @@ package handlers
 import (
 	"daily-notes/config"
 	"daily-notes/templates/pages"
+	"daily-notes/utils"
+	"log/slog"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,8 +13,22 @@ import (
 func HomePage(c *fiber.Ctx) error {
 	// Set HTML content type
 	c.Set("Content-Type", "text/html; charset=utf-8")
+
+	// Get logger from context or use default
+	logger := slog.Default()
+
+	// Get Vite bundle paths from manifest
+	mainScript := utils.GetMainScript(logger)
+	legacyPolyfills, legacyMain := utils.GetLegacyScripts(logger)
+
 	// Render with Templ
-	return pages.Index(config.AppConfig.GoogleClientID, config.AppConfig.Env).Render(c.Context(), c.Response().BodyWriter())
+	return pages.Index(
+		config.AppConfig.GoogleClientID,
+		config.AppConfig.Env,
+		mainScript,
+		legacyPolyfills,
+		legacyMain,
+	).Render(c.Context(), c.Response().BodyWriter())
 }
 
 func ServerTime(c *fiber.Ctx) error {
