@@ -1,20 +1,18 @@
 package services
 
 import (
-	"daily-notes/database"
 	"daily-notes/models"
-	"daily-notes/sync"
 	"time"
 )
 
 // NoteService handles business logic for notes
 type NoteService struct {
-	repo       *database.Repository
-	syncWorker *sync.Worker
+	repo       NoteRepository
+	syncWorker SyncWorker
 }
 
 // NewNoteService creates a new note service
-func NewNoteService(repo *database.Repository, syncWorker *sync.Worker) *NoteService {
+func NewNoteService(repo NoteRepository, syncWorker SyncWorker) *NoteService {
 	return &NoteService{
 		repo:       repo,
 		syncWorker: syncWorker,

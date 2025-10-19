@@ -1,4 +1,4 @@
-.PHONY: help build run dev test clean docker-build docker-run docker-stop deploy
+.PHONY: help build build-frontend build-backend run dev test test-go test-frontend test-all clean docker-build docker-run docker-stop deploy
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -6,12 +6,19 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-build: ## Build the application binary
+build-frontend: ## Build the frontend TypeScript bundle
+	@echo "Building frontend with Vite..."
+	@npm run build
+	@echo "Frontend build complete!"
+
+build-backend: ## Build the Go backend binary
 	@echo "Generating Templ templates..."
 	@templ generate
 	@echo "Building application..."
 	@go build -o bin/dailynotes main.go
-	@echo "Build complete! Binary: ./bin/dailynotes"
+	@echo "Backend build complete! Binary: ./bin/dailynotes"
+
+build: build-frontend build-backend ## Build the complete application (frontend + backend)
 
 run: ## Run the application
 	@echo "Running application..."
@@ -26,15 +33,40 @@ templ-watch: ## Watch and regenerate Templ templates on change
 	@echo "Watching Templ templates..."
 	@templ generate --watch
 
-test: ## Run tests
-	@echo "Running tests..."
+test: ## Run Go tests
+	@echo "Running Go tests..."
 	@go test -v ./...
+
+test-go: ## Run Go tests with coverage
+	@echo "Running Go tests with coverage..."
+	@go test -v -coverprofile=coverage.out ./...
+	@go tool cover -func=coverage.out | grep total
+
+test-frontend: ## Run frontend tests
+	@echo "Running frontend tests..."
+	@npm test
+
+test-all: ## Run all tests (Go + Frontend)
+	@echo "Running all tests (Go + Frontend)..."
+	@echo "\n=== Go Tests ==="
+	@go test -v -coverprofile=coverage.out ./...
+	@echo "\n=== Frontend Tests ==="
+	@npm test
+	@echo "\n=== Go Coverage Summary ==="
+	@go tool cover -func=coverage.out | grep total
 
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
 	@rm -rf bin/
+	@rm -rf static/dist/
 	@rm -f dailynotes
 	@echo "Clean complete!"
+
+lint-frontend: ## Lint and format frontend code
+	@echo "Linting TypeScript..."
+	@npm run lint:fix
+	@npm run format
+	@echo "Frontend linting complete!"
 
 docker-build: ## Build Docker image
 	@echo "Building Docker image..."

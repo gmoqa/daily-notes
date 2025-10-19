@@ -3,17 +3,18 @@
  * Initializes and coordinates all modules
  */
 
-import { state } from './utils/state'
-import { cache } from './utils/cache'
-import { api } from './services/api'
-import { events, EVENT } from './utils/events'
-import { auth } from './services/auth'
-import { notes } from './services/notes'
-import { contexts } from './services/contexts'
-import { calendar } from './components/Calendar'
-import { markdownEditor } from './components/Editor'
-import { notifications } from './components/Notifications'
-import { ui } from './components/UI'
+import { state } from '@utils/state'
+import { cache } from '@utils/cache'
+import { events, EVENT } from '@utils/events'
+import { SyncQueue } from '@utils/sync'
+import { api } from '@services/api'
+import { auth } from '@services/auth'
+import { notes } from '@services/notes'
+import { contexts } from '@services/contexts'
+import { calendar } from '@components/Calendar'
+import { markdownEditor } from '@components/Editor'
+import { notifications } from '@components/Notifications'
+import { ui } from '@components/UI'
 
 declare global {
   interface Window {
@@ -24,6 +25,8 @@ declare global {
 }
 
 class Application {
+  private syncQueue: SyncQueue | null = null
+
   async init(googleClientId: string): Promise<void> {
     console.log('[MAIN] Initializing with client ID:', googleClientId)
 
@@ -34,6 +37,9 @@ class Application {
     } catch (err) {
       console.warn('IndexedDB not available', err)
     }
+
+    // Initialize sync queue
+    this.syncQueue = new SyncQueue(api)
 
     // Setup event handlers
     this.setupEventHandlers()
@@ -69,6 +75,41 @@ class Application {
   }
 
   private setupEventHandlers(): void {
+    // Sync events
+    events.on('sync-add' as any, (e: CustomEvent) => {
+      this.syncQueue?.add(e.detail)
+    })
+
+    events.on('sync-force' as any, () => {
+      if (this.syncQueue && this.syncQueue.getPendingCount() > 0) {
+        this.syncQueue.process()
+      }
+    })
+
+    events.on(EVENT.SYNC_STATUS, (e: CustomEvent) => {
+      ui.updateSyncStatus(e.detail)
+    })
+
+    events.on(EVENT.OPERATION_SYNCED, (e: CustomEvent) => {
+      console.log('Synced to server:', e.detail.type)
+    })
+
+    events.on(EVENT.SYNC_ERROR, (e: CustomEvent) => {
+      const { error, maxRetriesReached, retryCount, maxRetries } = e.detail
+
+      if (maxRetriesReached) {
+        notifications.error(
+          'Failed to sync note after multiple attempts. Please check your connection.',
+          {
+            title: 'Sync Failed',
+            duration: 5000
+          }
+        )
+      } else if (retryCount) {
+        console.warn(`Sync retry ${retryCount}/${maxRetries}:`, error)
+      }
+    })
+
     // Session expired handling
     events.on('session-expired' as any, (e: CustomEvent) => {
       if (e.detail.isNoteRequest) {

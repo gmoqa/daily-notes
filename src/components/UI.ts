@@ -3,87 +3,18 @@
  * Handles all UI rendering and user interactions
  */
 
-import { state } from '@/utils/state';
-import { contexts } from '@/services/contexts';
-import { calendar } from '@/components/Calendar';
-import { notes } from '@/services/notes';
-import { events } from '@/utils/events';
-import { api } from '@/services/api';
-import { notifications } from '@/components/Notifications';
-import { markdownEditor } from '@/components/Editor';
-import { auth } from '@/services/auth';
-
-interface UIElements {
-    // Sections
-    authSection: HTMLElement | null;
-    appSection: HTMLElement | null;
-
-    // Context
-    contextSelect: HTMLSelectElement | null;
-    contextColorIndicator: HTMLElement | null;
-
-    // Mobile context
-    mobileContextSelect: HTMLSelectElement | null;
-    mobileContextColorIndicator: HTMLElement | null;
-
-    // Date
-    datePicker: HTMLInputElement | null;
-
-    // Breadcrumb
-    breadcrumbContextName: HTMLElement | null;
-    breadcrumbDateName: HTMLElement | null;
-
-    // Editor
-    markdownEditorContainer: HTMLElement | null;
-    saveIndicator: HTMLElement | null;
-
-    // Notes list
-    notesList: HTMLElement | null;
-
-    // User
-    userEmail: HTMLElement | null;
-
-    // Time
-    currentTime: HTMLElement | null;
-    currentDate: HTMLElement | null;
-
-    // Modals
-    contextModal: HTMLElement | null;
-    settingsModal: HTMLElement | null;
-    onboardingModal: HTMLElement | null;
-
-    // Sync status
-    syncStatus: HTMLElement | null;
-    syncStatusText: HTMLElement | null;
-
-    // Theme
-    themeToggleMenu: HTMLElement | null;
-    themeToggleSwitch: HTMLInputElement | null;
-
-    // Settings
-    weekStartSelect: HTMLSelectElement | null;
-    timezoneSelect: HTMLSelectElement | null;
-
-    // Mobile navigation
-    mobileNotesToggle: HTMLElement | null;
-    mobileCalendarToggle: HTMLElement | null;
-    sidebar: HTMLElement | null;
-    calendarPanel: HTMLElement | null;
-    sidebarOverlay: HTMLElement | null;
-    calendarOverlay: HTMLElement | null;
-    sidebarClose: HTMLElement | null;
-    calendarClose: HTMLElement | null;
-}
-
-interface SyncStatusOptions {
-    pending: number;
-    syncing: boolean;
-}
-
-interface NotificationOptions {
-    title?: string;
-    duration?: number;
-}
+import { state } from '@/utils/state'
+import { contexts } from '@/services/contexts'
+import { calendar } from '@/components/Calendar'
+import { notes } from '@/services/notes'
+import { events } from '@/utils/events'
+import { api } from '@/services/api'
+import { notifications } from '@/components/Notifications'
+import { markdownEditor } from '@/components/Editor'
+import { auth } from '@/services/auth'
+import { cacheElements } from './ui/elements'
+import { normalizeToBulmaColor, getColorLabel, setupColorButtons, selectColorButton } from './ui/colors'
+import type { UIElements, SyncStatusOptions, NotificationOptions } from './ui/types'
 
 export class UIManager {
     elements: UIElements;
@@ -100,76 +31,12 @@ export class UIManager {
     }
 
     init(): void {
-        this.cacheElements();
-        this.setupEventListeners();
-        this.setupStateSubscriptions();
-        this.setupUserDropdown();
-        this.setupMobileNavigation();
-        this.startClock();
-    }
-
-    cacheElements(): void {
-        this.elements = {
-            // Sections
-            authSection: document.getElementById('auth-section'),
-            appSection: document.getElementById('app-section'),
-
-            // Context
-            contextSelect: document.getElementById('context-select') as HTMLSelectElement | null,
-            contextColorIndicator: document.getElementById('context-color-indicator'),
-
-            // Mobile context
-            mobileContextSelect: document.getElementById('mobile-context-select') as HTMLSelectElement | null,
-            mobileContextColorIndicator: document.getElementById('mobile-context-color-indicator'),
-
-            // Date
-            datePicker: document.getElementById('date-picker') as HTMLInputElement | null,
-
-            // Breadcrumb
-            breadcrumbContextName: document.getElementById('breadcrumb-context-name'),
-            breadcrumbDateName: document.getElementById('breadcrumb-date-name'),
-
-            // Editor
-            markdownEditorContainer: document.getElementById('markdown-editor-container'),
-            saveIndicator: document.getElementById('save-indicator'),
-
-            // Notes list
-            notesList: document.getElementById('notes-list'),
-
-            // User
-            userEmail: document.getElementById('user-email'),
-
-            // Time
-            currentTime: document.getElementById('current-time'),
-            currentDate: document.getElementById('current-date'),
-
-            // Modals
-            contextModal: document.getElementById('context-modal'),
-            settingsModal: document.getElementById('settings-modal'),
-            onboardingModal: document.getElementById('onboarding-modal'),
-
-            // Sync status
-            syncStatus: document.getElementById('sync-status'),
-            syncStatusText: document.getElementById('sync-status-text'),
-
-            // Theme
-            themeToggleMenu: document.getElementById('theme-toggle-menu'),
-            themeToggleSwitch: document.getElementById('theme-toggle-switch') as HTMLInputElement | null,
-
-            // Settings
-            weekStartSelect: document.getElementById('week-start-select') as HTMLSelectElement | null,
-            timezoneSelect: document.getElementById('timezone-select') as HTMLSelectElement | null,
-
-            // Mobile navigation
-            mobileNotesToggle: document.getElementById('mobile-notes-toggle'),
-            mobileCalendarToggle: document.getElementById('mobile-calendar-toggle'),
-            sidebar: document.querySelector('.sidebar') as HTMLElement | null,
-            calendarPanel: document.querySelector('.calendar-panel') as HTMLElement | null,
-            sidebarOverlay: document.getElementById('sidebar-overlay'),
-            calendarOverlay: document.getElementById('calendar-overlay'),
-            sidebarClose: document.getElementById('sidebar-close'),
-            calendarClose: document.getElementById('calendar-close'),
-        };
+        this.elements = cacheElements()
+        this.setupEventListeners()
+        this.setupStateSubscriptions()
+        this.setupUserDropdown()
+        this.setupMobileNavigation()
+        this.startClock()
     }
 
     setupEventListeners(): void {
@@ -484,7 +351,7 @@ export class UIManager {
             const opt = this.elements.contextSelect.options[this.elements.contextSelect.selectedIndex] as HTMLOptionElement;
 
             if (opt?.dataset.color && opt.value !== '') {
-                const normalizedColor = this.normalizeToBulmaColor(opt.dataset.color);
+                const normalizedColor = normalizeToBulmaColor(opt.dataset.color);
                 this.elements.contextColorIndicator.style.background = `var(--bulma-${normalizedColor})`;
                 this.elements.contextColorIndicator.style.opacity = '1';
             } else {
@@ -498,7 +365,7 @@ export class UIManager {
             const opt = this.elements.mobileContextSelect.options[this.elements.mobileContextSelect.selectedIndex] as HTMLOptionElement;
 
             if (opt?.dataset.color && opt.value !== '') {
-                const normalizedColor = this.normalizeToBulmaColor(opt.dataset.color);
+                const normalizedColor = normalizeToBulmaColor(opt.dataset.color);
                 this.elements.mobileContextColorIndicator.style.background = `var(--bulma-${normalizedColor})`;
                 this.elements.mobileContextColorIndicator.style.opacity = '1';
             } else {
@@ -824,10 +691,10 @@ export class UIManager {
         if (colorInput) colorInput.value = 'primary';
 
         // Setup color buttons handlers
-        this.setupColorButtons();
+        setupColorButtons('context-color', 'context-color-buttons');
 
         // Reset to primary
-        this.selectColorButton('primary');
+        selectColorButton('primary', 'context-color-buttons', 'context-color');
 
         nameInput?.focus();
     }
@@ -1118,7 +985,7 @@ export class UIManager {
 
         container.innerHTML = contextsList.map((ctx, _index) => {
             // Normalize old hex colors to Bulma colors
-            const normalizedColor = this.normalizeToBulmaColor(ctx.color);
+            const normalizedColor = normalizeToBulmaColor(ctx.color);
 
             return `
             <div class="is-flex is-align-items-center is-justify-content-space-between mb-3"
@@ -1150,95 +1017,6 @@ export class UIManager {
         }).join('');
     }
 
-    getColorLabel(color: string): string {
-        const labels: { [key: string]: string } = {
-            'text': 'Text (Gray)',
-            'link': 'Link (Blue)',
-            'primary': 'Primary (Cyan)',
-            'info': 'Info (Light Blue)',
-            'success': 'Success (Green)',
-            'warning': 'Warning (Yellow)',
-            'danger': 'Danger (Red)'
-        };
-        return labels[color] || color;
-    }
-
-    setupColorButtons(): void {
-        const hiddenInput = document.getElementById('context-color') as HTMLInputElement | null;
-
-        // Get fresh button references each time
-        const buttons = document.querySelectorAll('#context-color-buttons .color-btn');
-        if (!buttons.length) return;
-
-        buttons.forEach(button => {
-            // Remove old listeners by cloning
-            const newButton = button.cloneNode(true);
-            button.parentNode!.replaceChild(newButton, button);
-        });
-
-        // Get fresh references after cloning
-        const colorButtons = document.querySelectorAll('#context-color-buttons .color-btn');
-
-        colorButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                const color = (button as HTMLElement).dataset.color;
-
-                // Update hidden input
-                if (hiddenInput && color) hiddenInput.value = color;
-
-                // Update active state - get fresh references again
-                const allButtons = document.querySelectorAll('#context-color-buttons .color-btn');
-                allButtons.forEach(btn => {
-                    (btn as HTMLElement).classList.remove('is-active');
-                    (btn as HTMLElement).style.border = '3px solid transparent';
-                    (btn as HTMLElement).style.borderRadius = '8px';
-                });
-
-                (button as HTMLElement).classList.add('is-active');
-                (button as HTMLElement).style.border = '3px solid var(--bulma-text)';
-                (button as HTMLElement).style.borderRadius = '8px';
-            });
-        });
-    }
-
-    selectColorButton(color: string): void {
-        const colorButtons = document.querySelectorAll('#context-color-buttons .color-btn');
-        const hiddenInput = document.getElementById('context-color') as HTMLInputElement | null;
-
-        if (hiddenInput) hiddenInput.value = color;
-
-        colorButtons.forEach(btn => {
-            (btn as HTMLElement).classList.remove('is-active');
-            (btn as HTMLElement).style.border = '3px solid transparent';
-            (btn as HTMLElement).style.borderRadius = '8px';
-
-            if ((btn as HTMLElement).dataset.color === color) {
-                (btn as HTMLElement).classList.add('is-active');
-                (btn as HTMLElement).style.border = `3px solid var(--bulma-text)`;
-                (btn as HTMLElement).style.borderRadius = '8px';
-            }
-        });
-    }
-
-    normalizeToBulmaColor(color: string): string {
-        // If it's already a Bulma color name, return it
-        const bulmaColors = ['text', 'link', 'primary', 'info', 'success', 'warning', 'danger'];
-        if (bulmaColors.includes(color)) {
-            return color;
-        }
-
-        // Map old hex colors to closest Bulma color
-        const hexToColor: { [key: string]: string } = {
-            '#485fc7': 'primary',
-            '#3e8ed0': 'info',
-            '#48c78e': 'success',
-            '#ffe08a': 'warning',
-            '#f14668': 'danger'
-        };
-
-        return hexToColor[color] || 'primary';
-    }
 
     setupMobileNavigation(): void {
         // Toggle sidebar (notes list)
@@ -1662,7 +1440,7 @@ if (typeof window !== 'undefined') {
 
         // Set values
         nameInput.value = context.name;
-        const normalizedColor = ui.normalizeToBulmaColor(context.color);
+        const normalizedColor = normalizeToBulmaColor(context.color);
         colorValue.value = normalizedColor;
 
         // Render color buttons
@@ -1674,7 +1452,7 @@ if (typeof window !== 'undefined') {
                 <button type="button" class="button color-btn ${isActive ? 'is-active' : ''}"
                         data-color="${color}"
                         onclick="window.selectEditContextColor('${color}')"
-                        title="${ui.getColorLabel(color)}"
+                        title="${getColorLabel(color)}"
                         style="width: 32px; height: 32px; padding: 3px; ${borderStyle}; border-radius: 6px;">
                     <span style="display: block; width: 100%; height: 100%; background: var(--bulma-${color}); border-radius: 4px;"></span>
                 </button>

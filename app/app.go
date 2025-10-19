@@ -4,7 +4,6 @@ import (
 	"daily-notes/database"
 	"daily-notes/services"
 	"daily-notes/session"
-	"daily-notes/storage"
 	"daily-notes/sync"
 	"daily-notes/validator"
 	"log/slog"
@@ -27,7 +26,7 @@ type App struct {
 }
 
 // New creates a new App instance with all dependencies
-func New(repo *database.Repository, syncWorker *sync.Worker, sessionStore *session.Store, storageFactory storage.Factory, logger *slog.Logger) *App {
+func New(repo *database.Repository, syncWorker *sync.Worker, sessionStore *session.Store, storageFactory services.StorageFactory, logger *slog.Logger) *App {
 	// Create services with proper dependency injection
 	noteService := services.NewNoteService(repo, syncWorker)
 	contextService := services.NewContextService(repo, storageFactory)

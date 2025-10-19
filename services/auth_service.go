@@ -3,10 +3,7 @@ package services
 import (
 	"context"
 	"daily-notes/config"
-	"daily-notes/database"
 	"daily-notes/models"
-	"daily-notes/session"
-	"daily-notes/storage"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -15,21 +12,16 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-// SyncWorker interface for drive operations
-type SyncWorker interface {
-	ImportFromDrive(userID string, token *oauth2.Token) error
-}
-
 // AuthService handles authentication business logic
 type AuthService struct {
-	repo           *database.Repository
-	sessionStore   *session.Store
+	repo           AuthRepository
+	sessionStore   SessionStore
 	syncWorker     SyncWorker
-	storageFactory storage.Factory
+	storageFactory StorageFactory
 }
 
 // NewAuthService creates a new auth service
-func NewAuthService(repo *database.Repository, sessionStore *session.Store, syncWorker SyncWorker, storageFactory storage.Factory) *AuthService {
+func NewAuthService(repo AuthRepository, sessionStore SessionStore, syncWorker SyncWorker, storageFactory StorageFactory) *AuthService {
 	return &AuthService{
 		repo:           repo,
 		sessionStore:   sessionStore,

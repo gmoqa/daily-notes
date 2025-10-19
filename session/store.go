@@ -23,6 +23,35 @@ func NewStore(database *sql.DB) *Store {
 	return &Store{db: database}
 }
 
+// scannable represents anything that can be scanned (sql.Row or sql.Rows)
+type scannable interface {
+	Scan(dest ...interface{}) error
+}
+
+// scanSession is a helper to scan session data from database rows
+// This eliminates duplication across Get, GetByUserID, and Update
+func scanSession(scanner scannable) (*models.Session, error) {
+	var session models.Session
+	var settings models.UserSettings
+
+	err := scanner.Scan(
+		&session.ID, &session.UserID, &session.Email, &session.Name, &session.Picture,
+		&session.AccessToken, &session.RefreshToken, &session.TokenExpiry,
+		&settings.Theme, &settings.WeekStart, &settings.Timezone,
+		&settings.DateFormat, &settings.UniqueContextMode,
+		&settings.ShowBreadcrumb, &settings.ShowMarkdownEditor,
+		&settings.HideNewContextButton,
+		&session.ExpiresAt, &session.CreatedAt, &session.LastUsedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	session.Settings = settings
+	return &session, nil
+}
+
 // Create creates a new session in the database
 func (s *Store) Create(userID, email, name, picture, accessToken, refreshToken string, tokenExpiry time.Time, settings models.UserSettings) (*models.Session, error) {
 	if s.db == nil {
@@ -78,10 +107,7 @@ func (s *Store) Create(userID, email, name, picture, accessToken, refreshToken s
 
 // Get retrieves a session by its ID
 func (s *Store) Get(sessionID string) (*models.Session, error) {
-	var session models.Session
-	var settings models.UserSettings
-
-	err := s.db.QueryRow(`
+	row := s.db.QueryRow(`
 		SELECT id, user_id, email, name, picture,
 			access_token, refresh_token, token_expiry,
 			settings_theme, settings_week_start, settings_timezone,
@@ -91,33 +117,18 @@ func (s *Store) Get(sessionID string) (*models.Session, error) {
 			expires_at, created_at, last_used_at
 		FROM sessions
 		WHERE id = ? AND expires_at > ?
-	`, sessionID, time.Now()).Scan(
-		&session.ID, &session.UserID, &session.Email, &session.Name, &session.Picture,
-		&session.AccessToken, &session.RefreshToken, &session.TokenExpiry,
-		&settings.Theme, &settings.WeekStart, &settings.Timezone,
-		&settings.DateFormat, &settings.UniqueContextMode,
-		&settings.ShowBreadcrumb, &settings.ShowMarkdownEditor,
-		&settings.HideNewContextButton,
-		&session.ExpiresAt, &session.CreatedAt, &session.LastUsedAt,
-	)
+	`, sessionID, time.Now())
 
+	session, err := scanSession(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	session.Settings = settings
-	return &session, nil
+	return session, err
 }
 
 // GetByUserID retrieves the most recent session for a user
 func (s *Store) GetByUserID(userID string) *models.Session {
-	var session models.Session
-	var settings models.UserSettings
-
-	err := s.db.QueryRow(`
+	row := s.db.QueryRow(`
 		SELECT id, user_id, email, name, picture,
 			access_token, refresh_token, token_expiry,
 			settings_theme, settings_week_start, settings_timezone,
@@ -129,22 +140,13 @@ func (s *Store) GetByUserID(userID string) *models.Session {
 		WHERE user_id = ? AND expires_at > ?
 		ORDER BY last_used_at DESC
 		LIMIT 1
-	`, userID, time.Now()).Scan(
-		&session.ID, &session.UserID, &session.Email, &session.Name, &session.Picture,
-		&session.AccessToken, &session.RefreshToken, &session.TokenExpiry,
-		&settings.Theme, &settings.WeekStart, &settings.Timezone,
-		&settings.DateFormat, &settings.UniqueContextMode,
-		&settings.ShowBreadcrumb, &settings.ShowMarkdownEditor,
-		&settings.HideNewContextButton,
-		&session.ExpiresAt, &session.CreatedAt, &session.LastUsedAt,
-	)
+	`, userID, time.Now())
 
+	session, err := scanSession(row)
 	if err != nil {
 		return nil
 	}
-
-	session.Settings = settings
-	return &session
+	return session
 }
 
 // Update updates an existing session

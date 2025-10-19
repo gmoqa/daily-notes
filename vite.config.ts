@@ -5,7 +5,11 @@ import { resolve } from 'path'
 export default defineConfig({
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src')
+      '@': resolve(__dirname, './src'),
+      '@components': resolve(__dirname, './src/components'),
+      '@services': resolve(__dirname, './src/services'),
+      '@utils': resolve(__dirname, './src/utils'),
+      '@types': resolve(__dirname, './src/types')
     }
   },
   plugins: [
@@ -16,7 +20,7 @@ export default defineConfig({
   build: {
     outDir: 'static/dist',
     emptyOutDir: true,
-    manifest: true, // Generate manifest.json
+    manifest: true,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'src/main.ts')
@@ -24,17 +28,26 @@ export default defineConfig({
       output: {
         entryFileNames: 'js/[name]-[hash].js',
         chunkFileNames: 'js/[name]-[hash].js',
-        assetFileNames: '[ext]/[name]-[hash].[ext]'
+        assetFileNames: '[ext]/[name]-[hash].[ext]',
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            return 'vendor'
+          }
+          if (id.includes('src/utils')) {
+            return 'utils'
+          }
+        }
       }
     },
-    sourcemap: true,
+    sourcemap: process.env.NODE_ENV !== 'production',
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true,
+        drop_console: process.env.NODE_ENV === 'production',
         drop_debugger: true
       }
-    }
+    },
+    chunkSizeWarningLimit: 1000
   },
   server: {
     port: 5173,

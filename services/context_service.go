@@ -2,9 +2,7 @@ package services
 
 import (
 	"context"
-	"daily-notes/database"
 	"daily-notes/models"
-	"daily-notes/storage"
 	"strings"
 	"time"
 
@@ -14,12 +12,12 @@ import (
 
 // ContextService handles business logic for contexts
 type ContextService struct {
-	repo           *database.Repository
-	storageFactory storage.Factory
+	repo           ContextRepository
+	storageFactory StorageFactory
 }
 
 // NewContextService creates a new context service
-func NewContextService(repo *database.Repository, storageFactory storage.Factory) *ContextService {
+func NewContextService(repo ContextRepository, storageFactory StorageFactory) *ContextService {
 	return &ContextService{
 		repo:           repo,
 		storageFactory: storageFactory,
