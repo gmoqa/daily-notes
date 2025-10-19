@@ -828,8 +828,20 @@ export class UIManager {
     updateCurrentDateTime(): void {
         const settings = state.get('userSettings');
         const timezone = settings.timezone || 'UTC';
+        const dateFormat = settings.dateFormat || 'DD-MM-YY';
         const serverTimeOffset = state.get('serverTimeOffset');
         const now = new Date(Date.now() + serverTimeOffset);
+
+        // Determine locale based on user's date format preference
+        // MM-DD-YY: Use en-US (American format)
+        // DD-MM-YY: Use browser locale or fallback to en-GB (European format)
+        let locale: string;
+        if (dateFormat === 'MM-DD-YY') {
+            locale = 'en-US';
+        } else {
+            // Try to use the browser's locale, fallback to 'en-GB' if not available
+            locale = navigator.language || navigator.languages?.[0] || 'en-GB';
+        }
 
         const timeOptions: Intl.DateTimeFormatOptions = {
             hour: '2-digit',
@@ -847,8 +859,8 @@ export class UIManager {
             timeZone: timezone
         };
 
-        const timeString = now.toLocaleTimeString('en-US', timeOptions);
-        const dateString = now.toLocaleDateString('en-US', dateOptions);
+        const timeString = now.toLocaleTimeString(locale, timeOptions);
+        const dateString = now.toLocaleDateString(locale, dateOptions);
 
         if (this.elements.currentTime) {
             this.elements.currentTime.textContent = timeString;
