@@ -39,11 +39,11 @@ export default defineConfig({
         }
       }
     },
-    sourcemap: process.env.NODE_ENV !== 'production',
+    sourcemap: true,
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: process.env.NODE_ENV === 'production',
+        drop_console: false, // Keep console.log for debugging
         drop_debugger: true
       }
     },

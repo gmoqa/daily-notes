@@ -209,23 +209,13 @@ class Application {
   private async showApp(): Promise<void> {
     console.log('[MAIN] showApp called')
 
-    // Hide landing loader
-    const loader = document.getElementById('landing-loader')
-    if (loader) loader.classList.remove('visible')
-
-    // Show app section
-    const appSection = document.getElementById('app-section')
-    const authSection = document.getElementById('auth-section')
-    if (appSection) appSection.classList.add('visible')
-    if (authSection) authSection.classList.remove('visible')
-
     try {
       // Load contexts
       console.log('[MAIN] Loading contexts...')
       await contexts.loadContexts()
 
-      // Sync server time
-      this.syncServerTime()
+      // Sync server time (MUST complete before setting today's date or showing UI)
+      await this.syncServerTime()
 
       // Set today's date
       notes.setTodayDate()
@@ -251,6 +241,9 @@ class Application {
         await notes.loadNote(lastContext, todayDate)
       }
 
+      // Show app UI and onboarding modal if needed (clock will start here with correct time)
+      ui.showApp()
+
       console.log('[MAIN] App initialization complete')
     } catch (error) {
       console.error('[MAIN] Error initializing app:', error)
@@ -268,13 +261,16 @@ class Application {
       const clientTime = Date.now()
 
       const data = await api.getServerTime(timezone)
-      const serverTime = (data.offset || 0) * 1000
+      const serverTime = (data.timestamp || 0) * 1000 // Backend returns timestamp, not offset
       const roundTripTime = Date.now() - clientTime
       const offset = serverTime - clientTime + roundTripTime / 2
 
+      console.log('[MAIN] Server time synced. Offset:', offset, 'ms')
       state.set('serverTimeOffset', offset)
     } catch (error) {
       console.error('Failed to sync server time:', error)
+      // Set offset to 0 as fallback
+      state.set('serverTimeOffset', 0)
     }
 
     // Resync every minute

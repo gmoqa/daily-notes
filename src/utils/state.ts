@@ -9,6 +9,7 @@ interface AppState {
   // User state
   currentUser: User | null
   userSettings: UserSettings
+  hasNoContexts: boolean
 
   // Selection state
   selectedContext: string | null
@@ -55,6 +56,7 @@ class StateManager {
         showMarkdownEditor: false,
         hideNewContextButton: false
       },
+      hasNoContexts: false,
 
       // Selection state
       selectedContext: null,

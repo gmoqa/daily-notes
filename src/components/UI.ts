@@ -21,6 +21,7 @@ export class UIManager {
     lastKnownDate: string | null;
     INITIAL_RENDER_COUNT: number;
     renderedNotesCount: number;
+    clockStarted: boolean;
 
     constructor() {
         this.elements = {} as UIElements;
@@ -28,6 +29,7 @@ export class UIManager {
         // Virtual scrolling optimization
         this.INITIAL_RENDER_COUNT = 50; // Only render first 50 notes initially
         this.renderedNotesCount = this.INITIAL_RENDER_COUNT;
+        this.clockStarted = false;
     }
 
     init(): void {
@@ -36,7 +38,7 @@ export class UIManager {
         this.setupStateSubscriptions()
         this.setupUserDropdown()
         this.setupMobileNavigation()
-        this.startClock()
+        // Clock will start after server time sync in showApp()
     }
 
     setupEventListeners(): void {
@@ -491,7 +493,7 @@ export class UIManager {
                 if (contextsList.length === 0) {
                     // Wait a bit to ensure setDisabled has applied
                     setTimeout(() => {
-                        markdownEditor.setPlaceholderMessage('Click "New Context" to create your first context and start writing notes');
+                        markdownEditor.setPlaceholderMessage('Click "New Context" to create your first context and start writing notes.');
                     }, 100);
                 }
             });
@@ -615,20 +617,24 @@ export class UIManager {
         // Update new context button visibility
         this.updateNewContextButtonVisibility();
 
+        // Update editor state (to show proper placeholder message)
+        this.updateEditorState();
+
+        // Start clock (after server time sync is complete)
+        this.startClock();
+
         // Check if user has no contexts (new user or deleted all contexts)
         // We use hasNoContexts from the backend response, NOT from local state
         // because local state might not be loaded yet
         const hasNoContexts = (state as any).get('hasNoContexts');
-        const isDevelopment = (window as any).__ENV__ === 'development';
 
-        console.log('[UI] showApp - hasNoContexts:', hasNoContexts, 'isDevelopment:', isDevelopment);
+        console.log('[UI] showApp - hasNoContexts:', hasNoContexts);
 
         // Show onboarding modal when user has no contexts
         // This happens when:
         // - New user (never created a context)
         // - User deleted all their contexts
-        // We ONLY check hasNoContexts from backend, not local contexts state
-        if (isDevelopment || hasNoContexts) {
+        if (hasNoContexts) {
             console.log('[UI] Showing onboarding modal');
             setTimeout(() => {
                 this.elements.onboardingModal?.classList.add('is-active');
@@ -821,6 +827,12 @@ export class UIManager {
 
     // Clock
     startClock(): void {
+        if (this.clockStarted) {
+            console.log('[UI] Clock already started, skipping');
+            return;
+        }
+        this.clockStarted = true;
+        console.log('[UI] Starting clock with server time sync');
         this.updateCurrentDateTime();
         setInterval(() => this.updateCurrentDateTime(), 1000);
     }

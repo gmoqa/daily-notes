@@ -32,8 +32,9 @@ interface ContextsResponse {
 }
 
 interface ServerTimeResponse {
-  serverTime: string
-  offset: number
+  timestamp: number  // Unix timestamp in seconds
+  timezone: string
+  iso: string
 }
 
 export class APIClient {

@@ -142,6 +142,7 @@ class AuthManager {
 
         state.update({
           currentUser: data.user,
+          hasNoContexts: (data.user as any).hasNoContexts || false,
           userSettings: data.user.settings || {
             theme: 'dark',
             weekStart: 0,
