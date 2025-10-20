@@ -27,8 +27,13 @@ templ MobileNavigation() {
 	</nav>
 	<!-- Mobile Clock and Date Bar -->
 	<div class="mobile-clock-bar">
-		<p class="mobile-clock-time" id="mobile-current-time">00:00:00</p>
-		<p class="mobile-clock-date" id="mobile-current-date">Loading...</p>
+		<div class="mobile-clock-left">
+			<p class="mobile-selected-note-date" id="mobile-selected-note-date">Select a note</p>
+		</div>
+		<div class="mobile-clock-right">
+			<p class="mobile-clock-time" id="mobile-current-time">00:00:00</p>
+			<p class="mobile-clock-date" id="mobile-current-date">Loading...</p>
+		</div>
 	</div>
 	<!-- Mobile Overlays -->
 	<div class="sidebar-overlay" id="sidebar-overlay"></div>

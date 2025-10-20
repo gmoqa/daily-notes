@@ -1124,22 +1124,47 @@ input:disabled + .slider {
     right: 0;
     background: var(--bulma-scheme-main);
     border-bottom: 1px solid var(--bulma-border);
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1rem;
     z-index: 49;
-    text-align: center;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+    min-height: 60px;
+}
+
+.mobile-clock-left {
+    flex: 1;
+    text-align: left;
+    min-width: 0;
+    display: flex;
+    align-items: flex-end;
+}
+
+.mobile-clock-right {
+    text-align: right;
+}
+
+.mobile-selected-note-date {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin: 0;
+    color: var(--bulma-text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .mobile-clock-time {
     font-size: 1.25rem;
     font-weight: 600;
     margin: 0;
-    color: var(--bulma-text);
+    color: var(--bulma-text-light);
 }
 
 .mobile-clock-date {
     font-size: 0.875rem;
     margin: 0;
-    color: var(--bulma-text-light);
+    color: var(--bulma-text-weak);
 }
 
 /* Mobile Sidebar Overlay */
@@ -1261,7 +1286,7 @@ input:disabled + .slider {
 
     /* Show mobile clock bar */
     .mobile-clock-bar {
-        display: block;
+        display: flex;
     }
 
     /* Adjust main layout */
@@ -1275,7 +1300,7 @@ input:disabled + .slider {
     }
 
     .main-section {
-        padding-top: 7rem; /* Add padding to main section for nav + clock */
+        padding-top: 10rem; /* Add padding to main section for nav + clock */
     }
 
     .main-section .container {
@@ -1292,6 +1317,52 @@ input:disabled + .slider {
     .controls #date-picker {
         width: 100%;
         max-width: 100%;
+    }
+
+    /* Optimize Quill toolbar for mobile */
+    .ql-toolbar.ql-snow {
+        padding: 0.5rem 0.5rem !important;
+    }
+
+    .ql-toolbar.ql-snow button,
+    .ql-toolbar.ql-snow .ql-picker-label {
+        padding: 0.375rem !important;
+        width: 2rem !important;
+        height: 2rem !important;
+    }
+
+    /* Header picker (selector de tipo de texto) más ancho */
+    .ql-toolbar.ql-snow .ql-picker.ql-header {
+        width: 5rem !important;
+    }
+
+    .ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-label {
+        width: 5rem !important;
+        padding: 0.375rem 0.5rem !important;
+        font-size: 0.875rem !important;
+    }
+
+    .ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-label::before {
+        content: "Normal" !important;
+    }
+
+    .ql-toolbar.ql-snow .ql-picker.ql-header.ql-active .ql-picker-label::before {
+        content: attr(data-value) !important;
+    }
+
+    .ql-toolbar.ql-snow button svg,
+    .ql-toolbar.ql-snow .ql-picker-label svg {
+        width: 1rem !important;
+        height: 1rem !important;
+    }
+
+    .ql-toolbar.ql-snow .ql-formats {
+        margin-right: 0.5rem !important;
+    }
+
+    /* Aumentar separación entre toolbar y área de texto en mobile */
+    .ql-editor {
+        padding-top: 1.5rem !important;
     }
 
     .editor-wrapper {

@@ -39,6 +39,7 @@ export interface UIElements {
     // Mobile Time
     mobileCurrentTime: HTMLElement | null;
     mobileCurrentDate: HTMLElement | null;
+    mobileSelectedNoteDate: HTMLElement | null;
 
     // Modals
     contextModal: HTMLElement | null;

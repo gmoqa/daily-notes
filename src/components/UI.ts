@@ -874,18 +874,28 @@ export class UIManager {
         const timeString = now.toLocaleTimeString(locale, timeOptions);
         const dateString = now.toLocaleDateString(locale, dateOptions);
 
+        // Desktop date with full format (weekday + date)
         if (this.elements.currentTime) {
             this.elements.currentTime.textContent = timeString;
         }
         if (this.elements.currentDate) {
             this.elements.currentDate.textContent = dateString;
         }
-        // Update mobile clock
+
+        // Mobile date without weekday (shorter format)
+        const mobileDateOptions: Intl.DateTimeFormatOptions = {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            timeZone: timezone
+        };
+        const mobileDateString = now.toLocaleDateString(locale, mobileDateOptions);
+
         if (this.elements.mobileCurrentTime) {
             this.elements.mobileCurrentTime.textContent = timeString;
         }
         if (this.elements.mobileCurrentDate) {
-            this.elements.mobileCurrentDate.textContent = dateString;
+            this.elements.mobileCurrentDate.textContent = mobileDateString;
         }
 
         // Check if day changed and update calendar
@@ -1216,6 +1226,11 @@ export class UIManager {
             // Format: "Monday, 24-10-25.md" or "Monday, 10-24-25.md" depending on dateFormat
             const formattedDate = `${dayName}, ${dateStr}.md`;
             this.elements.breadcrumbDateName.textContent = formattedDate;
+
+            // Update mobile selected note date with .md extension (no day name)
+            if (this.elements.mobileSelectedNoteDate) {
+                this.elements.mobileSelectedNoteDate.textContent = `${dateStr}.md`;
+            }
         }
     }
 

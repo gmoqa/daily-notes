@@ -99,15 +99,14 @@ class MarkdownEditor {
         modules: {
           toolbar: [
             [{ header: [1, 2, 3, false] }],
-            ['bold', 'italic', 'strike'],
-            [{ list: 'ordered' }, { list: 'bullet' }],
+            ['bold', 'italic'],
+            [{ list: 'bullet' }],
             ['blockquote', 'code-block'],
-            ['link'],
-            ['clean']
+            ['link']
           ]
         },
         placeholder: 'Start writing your notes...',
-        formats: ['bold', 'italic', 'strike', 'header', 'list', 'code-block', 'blockquote', 'link']
+        formats: ['bold', 'italic', 'header', 'list', 'code-block', 'blockquote', 'link']
       })
 
       // Listen for text changes
