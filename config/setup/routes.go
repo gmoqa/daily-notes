@@ -30,7 +30,7 @@ func RegisterRoutes(fiberApp *fiber.App, application *app.App) {
 
 	// Auth routes
 	fiberApp.Post("/api/auth/login", handlers.Login(application))
-	fiberApp.Post("/api/auth/logout", handlers.Logout(application))
+	fiberApp.All("/api/auth/logout", handlers.Logout(application)) // Accept both GET and POST
 	fiberApp.Get("/api/auth/me", handlers.Me(application))
 
 	// Protected API routes

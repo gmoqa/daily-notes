@@ -773,6 +773,7 @@ body.loaded .material-symbols-outlined {
 .calendar-panel .user-settings-btn .dropdown-menu {
     width: 100%;
     padding-top: 0.5rem;
+    z-index: var(--z-modal);
 }
 
 .calendar-panel .user-settings-btn .dropdown-content {
@@ -1338,6 +1339,11 @@ input:disabled + .slider {
 
     .calendar-panel.mobile-panel .calendar-day {
         padding: 0.5rem;
+    }
+
+    /* Add extra padding to user menu on mobile to prevent dropdown from being cut off */
+    .calendar-panel.mobile-panel .user-settings-btn {
+        padding-bottom: 3rem;
     }
 
     /* Landing page improvements for mobile */

@@ -200,34 +200,18 @@ class AuthManager {
   signOut(): void {
     console.log('[AUTH] Starting logout...')
 
-    // Call logout endpoint (don't wait for response)
-    fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'same-origin'
-    })
-      .then(() => {
-        console.log('[AUTH] Logout endpoint called')
-      })
-      .catch(err => {
-        console.error('[AUTH] Logout endpoint error:', err)
-      })
-
-    // Clear localStorage and sessionStorage
-    console.log('[AUTH] Clearing storage...')
+    // Clear all client-side storage synchronously
     try {
       localStorage.clear()
       sessionStorage.clear()
+      console.log('[AUTH] Client storage cleared')
     } catch (e) {
       console.error('[AUTH] Storage clear error:', e)
     }
 
-    // Force reload immediately
-    console.log('[AUTH] Forcing reload...')
-    setTimeout(() => {
-      window.location.href = '/'
-      // Fallback in case href doesn't work
-      setTimeout(() => window.location.reload(), 100)
-    }, 50)
+    // Navigate to logout endpoint - server will handle session cleanup and redirect
+    console.log('[AUTH] Navigating to logout endpoint...')
+    window.location.href = '/api/auth/logout'
   }
 
   async clearAllCaches(): Promise<void> {
@@ -258,6 +242,28 @@ class AuthManager {
         )
         console.log('[AUTH] All Service Worker caches cleared')
       }
+
+      // Unregister all service workers
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(
+          registrations.map(registration => {
+            console.log('[AUTH] Unregistering service worker')
+            return registration.unregister()
+          })
+        )
+        console.log('[AUTH] All service workers unregistered')
+      }
+
+      // Clear cookies
+      document.cookie.split(';').forEach(cookie => {
+        const eqPos = cookie.indexOf('=')
+        const name = eqPos > -1 ? cookie.substring(0, eqPos).trim() : cookie.trim()
+        // Set cookie to expire in the past
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`
+      })
+      console.log('[AUTH] Cookies cleared')
 
       // Clear localStorage and sessionStorage
       localStorage.clear()

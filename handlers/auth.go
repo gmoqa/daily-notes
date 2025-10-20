@@ -90,9 +90,8 @@ func Logout(a *app.App) fiber.Handler {
 
 		c.ClearCookie("session_id")
 
-		return c.JSON(fiber.Map{
-			"success": true,
-		})
+		// Redirect to home page after logout
+		return c.Redirect("/", fiber.StatusSeeOther)
 	}
 }
 
