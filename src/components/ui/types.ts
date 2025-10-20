@@ -36,6 +36,10 @@ export interface UIElements {
     currentTime: HTMLElement | null;
     currentDate: HTMLElement | null;
 
+    // Mobile Time
+    mobileCurrentTime: HTMLElement | null;
+    mobileCurrentDate: HTMLElement | null;
+
     // Modals
     contextModal: HTMLElement | null;
     settingsModal: HTMLElement | null;

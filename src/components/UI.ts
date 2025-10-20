@@ -880,6 +880,13 @@ export class UIManager {
         if (this.elements.currentDate) {
             this.elements.currentDate.textContent = dateString;
         }
+        // Update mobile clock
+        if (this.elements.mobileCurrentTime) {
+            this.elements.mobileCurrentTime.textContent = timeString;
+        }
+        if (this.elements.mobileCurrentDate) {
+            this.elements.mobileCurrentDate.textContent = dateString;
+        }
 
         // Check if day changed and update calendar
         const currentDate = (state as any).get('today') as string;

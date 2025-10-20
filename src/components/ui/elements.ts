@@ -39,6 +39,10 @@ export function cacheElements(): UIElements {
         currentTime: document.getElementById('current-time'),
         currentDate: document.getElementById('current-date'),
 
+        // Mobile Time
+        mobileCurrentTime: document.getElementById('mobile-current-time'),
+        mobileCurrentDate: document.getElementById('mobile-current-date'),
+
         // Modals
         contextModal: document.getElementById('context-modal'),
         settingsModal: document.getElementById('settings-modal'),
