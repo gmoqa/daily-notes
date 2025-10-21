@@ -1273,7 +1273,7 @@ input:disabled + .slider {
     .controls {
         display: flex;
         gap: 1rem;
-        margin-bottom: 1rem;
+        margin-bottom: 2rem;
         padding: 0 1.5rem;
     }
 }
@@ -1310,7 +1310,7 @@ input:disabled + .slider {
     .controls {
         padding-top: 0;
         margin-top: 0;
-        margin-bottom: 1.5rem;
+        margin-bottom: 3rem;
         padding: 0 1rem; /* Match editor padding */
     }
 
@@ -1318,6 +1318,7 @@ input:disabled + .slider {
         width: 100%;
         max-width: 100%;
     }
+
 
     /* Optimize Quill toolbar for mobile */
     .ql-toolbar.ql-snow {
@@ -1367,8 +1368,8 @@ input:disabled + .slider {
 
     .editor-wrapper {
         width: calc(100% - 2rem);
-        margin: 9rem 1rem 1rem 1rem !important;
-        min-height: calc(100vh - 10rem); /* Adjusted for new spacing */
+        margin: 9.8rem 1rem 1rem 1rem !important;
+        min-height: calc(100vh - 10.8rem); /* Adjusted for new spacing */
     }
 
     /* Hide breadcrumb in mobile */

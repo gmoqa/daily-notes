@@ -493,7 +493,7 @@ export class UIManager {
                 if (contextsList.length === 0) {
                     // Wait a bit to ensure setDisabled has applied
                     setTimeout(() => {
-                        markdownEditor.setPlaceholderMessage('Click "New Context" to create your first context and start writing notes.');
+                        markdownEditor.setPlaceholderMessage('Click + to create your first context and start writing notes.');
                     }, 100);
                 }
             });

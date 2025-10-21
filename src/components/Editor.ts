@@ -99,14 +99,13 @@ class MarkdownEditor {
         modules: {
           toolbar: [
             [{ header: [1, 2, 3, false] }],
-            ['bold', 'italic'],
-            [{ list: 'bullet' }],
-            ['blockquote', 'code-block'],
+            ['bold', 'italic', 'underline'],
+            [{ list: 'ordered' }, { list: 'bullet' }],
             ['link']
           ]
         },
         placeholder: 'Start writing your notes...',
-        formats: ['bold', 'italic', 'header', 'list', 'code-block', 'blockquote', 'link']
+        formats: ['bold', 'italic', 'underline', 'strike', 'header', 'list', 'code-block', 'blockquote', 'link']
       })
 
       // Listen for text changes
@@ -217,6 +216,9 @@ class MarkdownEditor {
         }
         if (attrs.italic) {
           formattedText = `*${formattedText}*`
+        }
+        if (attrs.underline) {
+          formattedText = `__${formattedText}__`
         }
         if (attrs.strike) {
           formattedText = `~~${formattedText}~~`
@@ -359,8 +361,8 @@ class MarkdownEditor {
   private parseInlineMarkdown(text: string): QuillOp[] {
     const ops: QuillOp[] = []
 
-    // Parse inline formatting: bold, italic, strike, code, links
-    const regex = /(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(~~([^~]+)~~)|(`([^`]+)`)|(\[([^\]]+)\]\(([^)]+)\))/g
+    // Parse inline formatting: bold, italic, underline, strike, code, links
+    const regex = /(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(~~([^~]+)~~)|(__([^_]+)__)|(`([^`]+)`)|(\[([^\]]+)\]\(([^)]+)\))/g
     let lastIndex = 0
     let match: RegExpExecArray | null
 
@@ -382,13 +384,17 @@ class MarkdownEditor {
       else if (match[5]) {
         ops.push({ insert: match[6], attributes: { strike: true } })
       }
-      // Code
+      // Underline
       else if (match[7]) {
-        ops.push({ insert: match[8], attributes: { code: true } })
+        ops.push({ insert: match[8], attributes: { underline: true } })
+      }
+      // Code
+      else if (match[9]) {
+        ops.push({ insert: match[10], attributes: { code: true } })
       }
       // Link
-      else if (match[9]) {
-        ops.push({ insert: match[10], attributes: { link: match[11] } })
+      else if (match[11]) {
+        ops.push({ insert: match[12], attributes: { link: match[13] } })
       }
 
       lastIndex = regex.lastIndex

@@ -64,7 +64,12 @@
     "type": "git",
     "url": "git+https://github.com/gmoqa/daily-notes.git"
   },
-  "keywords": ["notes", "daily-notes", "google-drive", "markdown"],
+  "keywords": [
+    "notes",
+    "daily-notes",
+    "google-drive",
+    "markdown"
+  ],
   "author": "",
   "license": "ISC",
   "bugs": {
