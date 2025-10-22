@@ -1,5 +1,8 @@
 .PHONY: help build build-frontend build-backend run dev test test-go test-frontend test-all clean docker-build docker-run docker-stop deploy
 
+# Set Go toolchain to auto for compatibility
+export GOTOOLCHAIN=auto
+
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
@@ -21,6 +24,8 @@ build-backend: ## Build the Go backend binary
 build: build-frontend build-backend ## Build the complete application (frontend + backend)
 
 run: ## Run the application
+	@echo "Generating templates..."
+	@~/go/bin/templ generate || templ generate
 	@echo "Running application..."
 	@go run main.go
 

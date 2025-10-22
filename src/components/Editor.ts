@@ -26,12 +26,17 @@ class MarkdownEditor {
   private editor: any = null
   private editorElement: HTMLElement | null = null
   private onChangeCallback: ((content: string) => void) | null = null
+  private onFlushCallback: ((content: string) => Promise<void>) | null = null
   private isUpdating = false
   private currentNoteContent = ''
   private updateTimeout: number | null = null
   private contentVersion = 0 // Track version to ignore stale events
 
-  async init(containerId: string, onChange: (content: string) => void): Promise<void> {
+  async init(
+    containerId: string,
+    onChange: (content: string) => void,
+    onFlush?: (content: string) => Promise<void>
+  ): Promise<void> {
     this.container = document.getElementById(containerId)
     if (!this.container) {
       console.error('[MarkdownEditor] Container not found:', containerId)
@@ -39,6 +44,7 @@ class MarkdownEditor {
     }
 
     this.onChangeCallback = onChange
+    this.onFlushCallback = onFlush || null
 
     // Don't load Quill yet - wait until actually needed (lazy loading)
     // This saves ~300KB on initial page load
@@ -452,15 +458,23 @@ class MarkdownEditor {
   /**
    * Force flush any pending changes immediately
    * Used before context/date changes to prevent data loss
+   * Returns a Promise that resolves when the save is complete
    */
-  forceFlush(): void {
+  async forceFlush(): Promise<void> {
     if (!this.editor || this.isUpdating) return
 
     const markdown = this.getMarkdown()
 
-    // Clear any pending debounced save
-    if (this.onChangeCallback) {
+    console.log('[Editor] forceFlush called - content length:', markdown.length)
+
+    // Use flush callback if available (for immediate save)
+    if (this.onFlushCallback) {
+      await this.onFlushCallback(markdown)
+      console.log('[Editor] Flush callback completed')
+    } else if (this.onChangeCallback) {
+      // Fallback to change callback (will still debounce)
       this.onChangeCallback(markdown)
+      console.log('[Editor] Change callback triggered (fallback)')
     }
   }
 

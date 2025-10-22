@@ -129,11 +129,12 @@ class NotesManager {
       updated_at: now
     }
 
-    // 1. Save to local cache immediately (optimistic)
-    await cache.saveNote(note as Note)
+    // 1. Save to local cache IMMEDIATELY (no batching delay)
+    // Use saveNoteImmediate to ensure data is persisted right away
+    await cache.saveNoteImmediate(note as Note)
     this.currentNoteContent = content
 
-    console.log(`[Notes] Saved to cache and updated currentNoteContent`)
+    console.log(`[Notes] Saved to cache immediately and updated currentNoteContent`)
 
     events.emit(EVENT.NOTE_SAVED, { context, date, content })
 
@@ -147,7 +148,27 @@ class NotesManager {
       console.log(`[Notes] Successfully synced to server`)
     } catch (error) {
       console.error('[Notes] Failed to sync to server:', error)
-      // Note is still saved locally in cache, will retry on next app load
+
+      // Check if it's a session expired error
+      if (error instanceof Error && error.message.includes('Session expired')) {
+        console.warn('[Notes] Session expired - note saved locally but not synced to server')
+
+        // Emit event to show persistent warning
+        events.emit('sync-failed-session-expired' as any, {
+          context,
+          date,
+          noteLength: content.length
+        })
+      } else {
+        // Other error (network, server down, etc.)
+        console.warn('[Notes] Sync failed - note saved locally, will retry later')
+
+        events.emit('sync-failed' as any, {
+          context,
+          date,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
     }
   }
 
@@ -275,22 +296,44 @@ class NotesManager {
 
     // Debounce save - reduced from 1000ms to 500ms for better UX
     this.saveTimeout = window.setTimeout(() => {
-      // Re-validate that context and date haven't changed
-      const currentContext = state.get('selectedContext')
-      const currentDate = state.get('selectedDate')
-
-      // Only save if context/date haven't changed
-      // We don't check content anymore because currentNoteContent is updated immediately
-      if (currentContext === capturedContext && currentDate === capturedDate) {
-        console.log(`[Notes] Saving note - context: ${capturedContext}, date: ${capturedDate}`)
-        // Use the LATEST content from currentNoteContent, not the captured one
+      // ALWAYS save with the captured context/date values
+      // This ensures we don't lose data even if the user switches context/date
+      if (capturedContext && capturedDate) {
+        console.log(`[Notes] Saving note (debounced) - context: ${capturedContext}, date: ${capturedDate}`)
         this.saveNote(capturedContext, capturedDate, this.currentNoteContent)
-      } else {
-        console.log(
-          `[Notes] Save cancelled - context/date changed from ${capturedContext}/${capturedDate} to ${currentContext}/${currentDate}`
-        )
       }
     }, 500)
+  }
+
+  /**
+   * Force save immediately without debouncing
+   * Used before context/date changes to prevent data loss
+   */
+  async handleFlush(content: string): Promise<void> {
+    // Clear any pending debounced save
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout)
+      this.saveTimeout = null
+    }
+
+    // Update current content
+    this.currentNoteContent = content
+
+    // Get current context and date
+    const context = state.get('selectedContext')
+    const date = state.get('selectedDate')
+
+    if (!context || !date) {
+      console.log('[Notes] handleFlush - no context or date selected, skipping save')
+      return
+    }
+
+    console.log(`[Notes] Flushing note immediately - context: ${context}, date: ${date}, content length: ${content.length}`)
+
+    // Save immediately without debounce
+    await this.saveNote(context, date, content)
+
+    console.log('[Notes] Flush completed')
   }
 
   async selectDate(dateStr: string): Promise<void> {

@@ -72,4 +72,5 @@ export interface SyncStatusOptions {
 export interface NotificationOptions {
     title?: string;
     duration?: number;
+    onClick?: () => void;
 }

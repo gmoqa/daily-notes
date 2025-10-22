@@ -29,7 +29,9 @@ func RegisterRoutes(fiberApp *fiber.App, application *app.App) {
 	fiberApp.Get("/api/time", handlers.ServerTime)
 
 	// Auth routes
-	fiberApp.Post("/api/auth/login", handlers.Login(application))
+	fiberApp.Post("/api/auth/login", handlers.Login(application))        // Legacy: GIS popup login
+	fiberApp.Get("/auth/google", handlers.GoogleLogin(application))      // New: OAuth redirect login
+	fiberApp.Get("/auth/google/callback", handlers.GoogleCallback(application)) // OAuth callback
 	fiberApp.Post("/api/auth/logout", handlers.Logout(application))
 	fiberApp.Get("/api/auth/me", handlers.Me(application))
 

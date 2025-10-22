@@ -2,11 +2,9 @@ module daily-notes
 
 go 1.24.0
 
-toolchain go1.24.6
-
 require (
-	github.com/a-h/templ v0.3.943
-	github.com/go-playground/validator/v10 v10.28.0
+	github.com/a-h/templ v0.3.960
+	github.com/go-playground/validator/v10 v10.22.1
 	github.com/gofiber/fiber/v2 v2.52.8
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1

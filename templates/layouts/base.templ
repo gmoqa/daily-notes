@@ -71,8 +71,6 @@ templ Base(title string, googleClientID string, env string, mainScript string, l
 			<!-- Skip to main content link for accessibility -->
 			<a href="#main-content" class="skip-link">Skip to main content</a>
 			{ children... }
-			<!-- Service Worker registration -->
-			<script src="https://accounts.google.com/gsi/client" async defer></script>
 			<!-- Modern bundle (module) -->
 			if mainScript != "" {
 				<script type="module" src={ mainScript }></script>

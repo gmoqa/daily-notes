@@ -20,12 +20,26 @@ var AppConfig *Config
 func Load() {
 	_ = godotenv.Load()
 
+	env := GetEnv("ENV", "development")
+	port := GetEnv("PORT", "3000")
+
+	// Auto-detect redirect URL based on environment
+	redirectURL := GetEnv("GOOGLE_REDIRECT_URL", "")
+	if redirectURL == "" {
+		if env == "production" {
+			redirectURL = "https://dailynotes.dev/auth/google/callback"
+		} else {
+			redirectURL = "http://localhost:" + port + "/auth/google/callback"
+		}
+		log.Printf("[CONFIG] Auto-detected GOOGLE_REDIRECT_URL: %s", redirectURL)
+	}
+
 	AppConfig = &Config{
-		Port:               GetEnv("PORT", "3000"),
-		Env:                GetEnv("ENV", "development"),
+		Port:               port,
+		Env:                env,
 		GoogleClientID:     GetEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: GetEnv("GOOGLE_CLIENT_SECRET", ""),
-		GoogleRedirectURL:  GetEnv("GOOGLE_REDIRECT_URL", "postmessage"),
+		GoogleRedirectURL:  redirectURL,
 	}
 
 	if AppConfig.GoogleClientID == "" {

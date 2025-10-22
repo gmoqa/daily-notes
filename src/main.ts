@@ -48,9 +48,15 @@ class Application {
     ui.init()
 
     // Initialize Markdown Editor
-    await markdownEditor.init('markdown-editor-container', (content: string) => {
-      notes.handleNoteInput(content)
-    })
+    await markdownEditor.init(
+      'markdown-editor-container',
+      (content: string) => {
+        notes.handleNoteInput(content)
+      },
+      async (content: string) => {
+        await notes.handleFlush(content)
+      }
+    )
 
     // Check authentication
     const isAuthenticated = await auth.checkAuth()
@@ -75,6 +81,43 @@ class Application {
   }
 
   private setupEventHandlers(): void {
+    // beforeunload: Save any pending changes before page closes/reloads
+    window.addEventListener('beforeunload', (e) => {
+      console.log('[MAIN] beforeunload - flushing editor and cache...')
+
+      // Force flush editor synchronously (best effort)
+      // Note: Can't use async/await here as beforeunload has time constraints
+      const context = state.get('selectedContext')
+      const date = state.get('selectedDate')
+
+      if (context && date && markdownEditor) {
+        try {
+          // Get current editor content
+          const content = markdownEditor.getContent()
+
+          // Save to cache synchronously if possible
+          const now = new Date().toISOString()
+          const note = {
+            context,
+            date,
+            content,
+            updated_at: now
+          }
+
+          // Use IndexedDB sync API if available (won't work in all browsers)
+          // Most modern browsers will keep the page open long enough for this
+          cache.saveNoteImmediate(note as any).catch(err => {
+            console.error('[MAIN] Failed to save on beforeunload:', err)
+          })
+        } catch (error) {
+          console.error('[MAIN] Error in beforeunload handler:', error)
+        }
+      }
+
+      // Don't show confirmation dialog
+      // delete e.returnValue
+    })
+
     // Sync events
     events.on('sync-add' as any, (e: CustomEvent) => {
       this.syncQueue?.add(e.detail)
@@ -123,6 +166,33 @@ class Application {
       }
     })
 
+    // Sync failed due to session expired (persistent warning)
+    events.on('sync-failed-session-expired' as any, (e: CustomEvent) => {
+      console.warn('[MAIN] Note saved locally but NOT synced to server - session expired')
+
+      // Show persistent warning
+      notifications.error(
+        'Your session has expired. Notes are saved locally but NOT syncing to Google Drive. Please refresh the page to sign in again.',
+        {
+          title: '⚠️ Session Expired - Not Syncing',
+          duration: 0 // Persistent until clicked
+        }
+      )
+    })
+
+    // Sync failed due to other errors (network, server down, etc.)
+    events.on('sync-failed' as any, (e: CustomEvent) => {
+      console.warn('[MAIN] Note saved locally but sync failed:', e.detail.error)
+
+      notifications.warning(
+        'Note saved locally but could not sync to server. Will retry automatically.',
+        {
+          title: 'Sync Failed',
+          duration: 5000
+        }
+      )
+    })
+
     // Note events
     events.on(EVENT.NOTE_LOADED, (e: CustomEvent) => {
       markdownEditor.setContent(e.detail.content)
@@ -136,11 +206,10 @@ class Application {
     events.on(EVENT.CONTEXT_CHANGED, async (e: CustomEvent) => {
       const context = e.detail.context
 
-      // Force flush any pending editor changes
-      markdownEditor.forceFlush()
-
-      // Wait for flush to process
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Force flush any pending editor changes and wait for save to complete
+      console.log('[MAIN] Context changed, flushing editor...')
+      await markdownEditor.forceFlush()
+      console.log('[MAIN] Editor flushed, loading new context...')
 
       if (context) {
         let selectedDate = state.get('selectedDate')
@@ -166,9 +235,10 @@ class Application {
       const dateStr = e.detail.date
       const context = state.get('selectedContext')
 
-      // Force flush pending changes
-      markdownEditor.forceFlush()
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Force flush pending changes and wait for save to complete
+      console.log('[MAIN] Date changed, flushing editor...')
+      await markdownEditor.forceFlush()
+      console.log('[MAIN] Editor flushed, loading new date...')
 
       if (context) {
         const currentContext = state.get('selectedContext')
