@@ -12,11 +12,18 @@ declare global {
   interface Window {
     google?: {
       accounts: {
+        id: {
+          initialize: (config: OneTapConfig) => void
+          prompt: (callback?: (notification: PromptNotification) => void) => void
+          cancel: () => void
+        }
         oauth2: {
           initCodeClient: (config: {
             client_id: string
             scope: string
             ux_mode: string
+            access_type?: string
+            prompt?: string
             callback: (response: { code?: string; error?: string }) => void
           }) => {
             requestCode: () => void
@@ -25,6 +32,25 @@ declare global {
       }
     }
   }
+}
+
+interface OneTapConfig {
+  client_id: string
+  callback: (response: { credential?: string; select_by?: string }) => void
+  auto_select?: boolean
+  cancel_on_tap_outside?: boolean
+  context?: 'signin' | 'signup' | 'use'
+}
+
+interface PromptNotification {
+  isDisplayMoment: () => boolean
+  isDisplayed: () => boolean
+  isNotDisplayed: () => boolean
+  getNotDisplayedReason: () => string
+  isSkippedMoment: () => boolean
+  getSkippedReason: () => string
+  isDismissedMoment: () => boolean
+  getDismissedReason: () => string
 }
 
 interface CodeClient {
@@ -39,6 +65,7 @@ interface AuthCodeResponse {
 class AuthManager {
   private codeClient: CodeClient | null = null
   private initializationPromise: Promise<void> | null = null
+  private oneTapInitialized: boolean = false
 
   async checkAuth(): Promise<boolean> {
     const data = await api.checkAuth()
@@ -61,6 +88,78 @@ class AuthManager {
     }
 
     return false
+  }
+
+  private initOneTap(clientId: string): void {
+    if (this.oneTapInitialized || !window.google?.accounts?.id) {
+      return
+    }
+
+    try {
+      // Initialize One Tap - this will show a prompt if user is already signed in to Google
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: (response) => this.handleOneTapResponse(response),
+        auto_select: false, // Don't auto-select to give user control
+        cancel_on_tap_outside: true,
+        context: 'signin'
+      })
+
+      // Trigger One Tap prompt (will only show if conditions are met)
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+          console.log('[AUTH] One Tap not displayed:', notification.getNotDisplayedReason())
+        } else if (notification.isSkippedMoment()) {
+          console.log('[AUTH] One Tap skipped:', notification.getSkippedReason())
+        }
+      })
+
+      this.oneTapInitialized = true
+      console.log('[AUTH] One Tap initialized')
+    } catch (error) {
+      console.error('[AUTH] Failed to initialize One Tap:', error)
+    }
+  }
+
+  private async handleOneTapResponse(response: { credential?: string; select_by?: string }): Promise<void> {
+    if (!response.credential) {
+      console.error('[AUTH] One Tap: No credential received')
+      return
+    }
+
+    console.log('[AUTH] One Tap sign-in detected')
+    const loader = document.getElementById('landing-loader')
+    if (loader) loader.classList.add('visible')
+
+    try {
+      // Validate the credential token with our backend
+      const data = await api.loginWithToken(response.credential)
+
+      if (data.success && data.user) {
+        console.log('[AUTH] One Tap login successful')
+        state.update({
+          currentUser: data.user,
+          hasNoContexts: (data.user as any).hasNoContexts || false,
+          userSettings: data.user.settings || {
+            theme: 'dark',
+            weekStart: 0,
+            timezone: 'UTC',
+            dateFormat: 'DD-MM-YY',
+            uniqueContextMode: false,
+            showBreadcrumb: false,
+            showMarkdownEditor: false,
+            hideNewContextButton: false
+          }
+        })
+        events.emit('auth-success' as any, {})
+      } else {
+        if (loader) loader.classList.remove('visible')
+        console.error('[AUTH] One Tap login failed:', data.error)
+      }
+    } catch (error) {
+      if (loader) loader.classList.remove('visible')
+      console.error('[AUTH] One Tap login error:', error)
+    }
   }
 
   async initGoogleClient(clientId: string): Promise<void> {
@@ -86,8 +185,12 @@ class AuthManager {
               scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
               ux_mode: 'popup',
               callback: (response) => this.handleAuthCodeResponse(response)
-            })
+            } as any)
             console.log('[AUTH] Google code client initialized successfully')
+
+            // Initialize One Tap for smooth re-authentication
+            this.initOneTap(clientId)
+
             resolve()
           } catch (error) {
             console.error('[AUTH] Failed to initialize Google client:', error)

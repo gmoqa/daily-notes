@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/idtoken"
 )
 
 // AuthService handles authentication business logic
@@ -60,7 +61,8 @@ func (as *AuthService) LoginWithCode(code string) (*LoginResponse, error) {
 	}
 
 	// Exchange authorization code for tokens
-	token, err := oauthConfig.Exchange(ctx, code)
+	// Force access_type=offline to ensure we get refresh tokens
+	token, err := oauthConfig.Exchange(ctx, code, oauth2.AccessTypeOffline)
 	if err != nil {
 		return nil, ErrInvalidAuthCode
 	}
@@ -102,6 +104,71 @@ func (as *AuthService) LoginWithCode(code string) (*LoginResponse, error) {
 		Session:       sess,
 		HasNoContexts: hasNoContexts,
 		Token:         token,
+	}, nil
+}
+
+// LoginWithIDToken handles login via Google One Tap ID token
+func (as *AuthService) LoginWithIDToken(idToken string) (*LoginResponse, error) {
+	ctx := context.Background()
+
+	// Validate the ID token
+	payload, err := idtoken.Validate(ctx, idToken, config.AppConfig.GoogleClientID)
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+
+	// Extract user info from ID token
+	email, _ := payload.Claims["email"].(string)
+	name, _ := payload.Claims["name"].(string)
+	picture, _ := payload.Claims["picture"].(string)
+	googleID := payload.Subject
+
+	if googleID == "" || email == "" {
+		return nil, ErrInvalidUserInfo
+	}
+
+	userInfo := &UserInfo{
+		GoogleID: googleID,
+		Email:    email,
+		Name:     name,
+		Picture:  picture,
+	}
+
+	// For One Tap, we don't have Drive access by default, so use default settings
+	defaultSettings := models.UserSettings{
+		Theme:      "dark",
+		WeekStart:  0,
+		Timezone:   "UTC",
+		DateFormat: "DD-MM-YY",
+	}
+
+	// Create or update user
+	if err := as.createOrUpdateUser(userInfo, defaultSettings); err != nil {
+		return nil, err
+	}
+
+	// Create session (no tokens for One Tap - user would need to authorize for Drive access separately)
+	sess, err := as.sessionStore.Create(
+		userInfo.GoogleID,
+		userInfo.Email,
+		userInfo.Name,
+		userInfo.Picture,
+		"", // No access token
+		"", // No refresh token
+		time.Now().Add(30*24*time.Hour), // Session expires in 30 days
+		defaultSettings,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if this is first login
+	hasNoContexts := as.checkFirstLogin(userInfo.GoogleID)
+
+	return &LoginResponse{
+		Session:       sess,
+		HasNoContexts: hasNoContexts,
+		Token:         nil,
 	}, nil
 }
 
@@ -259,6 +326,64 @@ func (as *AuthService) createOrUpdateUser(userInfo *UserInfo, settings models.Us
 func (as *AuthService) checkFirstLogin(userID string) bool {
 	contexts, err := as.repo.GetContexts(userID)
 	return err == nil && len(contexts) == 0
+}
+
+// RefreshTokenIfNeeded checks if the access token is expiring soon and refreshes it if needed
+// Returns the updated token or the original if no refresh was needed
+func (as *AuthService) RefreshTokenIfNeeded(session *models.Session) (interface{}, error) {
+	// If token expires in less than 5 minutes, refresh it
+	if time.Until(session.TokenExpiry) > 5*time.Minute {
+		// Token is still valid, return current token
+		return &oauth2.Token{
+			AccessToken:  session.AccessToken,
+			RefreshToken: session.RefreshToken,
+			Expiry:       session.TokenExpiry,
+		}, nil
+	}
+
+	// Token is expiring soon or expired, refresh it
+	if session.RefreshToken == "" {
+		return nil, ErrNoRefreshToken
+	}
+
+	ctx := context.Background()
+	oauthConfig := &oauth2.Config{
+		ClientID:     config.AppConfig.GoogleClientID,
+		ClientSecret: config.AppConfig.GoogleClientSecret,
+		Endpoint:     google.Endpoint,
+	}
+
+	// Create token with refresh token
+	oldToken := &oauth2.Token{
+		AccessToken:  session.AccessToken,
+		RefreshToken: session.RefreshToken,
+		Expiry:       session.TokenExpiry,
+	}
+
+	// Get new token using refresh token
+	tokenSource := oauthConfig.TokenSource(ctx, oldToken)
+	newToken, err := tokenSource.Token()
+	if err != nil {
+		return nil, ErrTokenRefreshFailed
+	}
+
+	// Update session with new tokens
+	if err := as.sessionStore.UpdateUserToken(
+		session.UserID,
+		newToken.AccessToken,
+		newToken.RefreshToken,
+		newToken.Expiry,
+	); err != nil {
+		// Log error but return the new token anyway
+		// The token is still usable even if we couldn't save it
+	}
+
+	// Update the session object
+	session.AccessToken = newToken.AccessToken
+	session.RefreshToken = newToken.RefreshToken
+	session.TokenExpiry = newToken.Expiry
+
+	return newToken, nil
 }
 
 // HandlePostLogin performs post-login operations like importing from Drive

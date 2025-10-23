@@ -33,8 +33,8 @@ func RegisterRoutes(fiberApp *fiber.App, application *app.App) {
 	fiberApp.All("/api/auth/logout", handlers.Logout(application)) // Accept both GET and POST
 	fiberApp.Get("/api/auth/me", handlers.Me(application))
 
-	// Protected API routes
-	api := fiberApp.Group("/api", middleware.AuthRequired(application.SessionStore), limiter.New(limiter.Config{
+	// Protected API routes (with auto token refresh)
+	api := fiberApp.Group("/api", middleware.AuthRequired(application.SessionStore, application.AuthService), limiter.New(limiter.Config{
 		Max:        100,
 		Expiration: time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {

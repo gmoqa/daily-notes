@@ -116,6 +116,13 @@ export class APIClient {
     })
   }
 
+  async loginWithToken(idToken: string): Promise<LoginResponse> {
+    return await this.request<LoginResponse>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ id_token: idToken })
+    })
+  }
+
   async logout(): Promise<void> {
     await this.request('/api/auth/logout', {
       method: 'POST'

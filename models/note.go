@@ -105,9 +105,11 @@ type Session struct {
 }
 
 type LoginRequest struct {
-	AccessToken  string `json:"access_token" validate:"required_without=Code"`
+	AccessToken  string `json:"access_token,omitempty"`
 	RefreshToken string `json:"refresh_token,omitempty"`
 	ExpiresIn    int64  `json:"expires_in,omitempty"`
-	// For authorization code flow
-	Code string `json:"code,omitempty" validate:"required_without=AccessToken"`
+	// For authorization code flow (modern, recommended)
+	Code string `json:"code,omitempty"`
+	// For One Tap sign-in (ID token from Google)
+	IDToken string `json:"id_token,omitempty"`
 }

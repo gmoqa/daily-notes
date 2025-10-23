@@ -8,7 +8,7 @@
     "name": "utils"
   },
   "src/main-legacy.ts": {
-    "file": "js/main-legacy-C1RGd-wH.js",
+    "file": "js/main-legacy-CySfEZ-c.js",
     "name": "main",
     "src": "src/main-legacy.ts",
     "isEntry": true,
@@ -17,7 +17,7 @@
     ]
   },
   "src/main.ts": {
-    "file": "js/main-dbQNq-HO.js",
+    "file": "js/main-B-MbmeT6.js",
     "name": "main",
     "src": "src/main.ts",
     "isEntry": true,

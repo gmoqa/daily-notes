@@ -26,16 +26,20 @@ func Login(a *app.App) fiber.Handler {
 		var err error
 
 		if req.Code != "" {
-			// Authorization Code Flow
+			// Authorization Code Flow (modern, recommended)
 			log.Printf("[AUTH] Using authorization code flow")
 			loginResponse, err = a.AuthService.LoginWithCode(req.Code)
+		} else if req.IDToken != "" {
+			// One Tap Sign-in (ID token from Google)
+			log.Printf("[AUTH] Using One Tap ID token flow")
+			loginResponse, err = a.AuthService.LoginWithIDToken(req.IDToken)
 		} else if req.AccessToken != "" {
 			// Direct Token Flow (legacy support)
-			log.Printf("[AUTH] Using direct access token flow (no refresh token)")
+			log.Printf("[AUTH] Using direct access token flow (legacy)")
 			loginResponse, err = a.AuthService.LoginWithToken(req.AccessToken, req.RefreshToken, req.ExpiresIn)
 		} else {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Either code or access_token is required",
+				"error": "code, id_token, or access_token is required",
 			})
 		}
 

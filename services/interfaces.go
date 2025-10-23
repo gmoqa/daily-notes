@@ -62,6 +62,8 @@ type StorageFactory func(ctx context.Context, token *oauth2.Token, userID string
 type SessionStore interface {
 	Create(userID, email, name, picture, accessToken, refreshToken string, tokenExpiry time.Time, settings models.UserSettings) (*models.Session, error)
 	Get(sessionID string) (*models.Session, error)
+	Update(sessionID string, session *models.Session) error
+	UpdateUserToken(userID string, accessToken, refreshToken string, tokenExpiry time.Time) error
 	Delete(sessionID string) error
 }
 

@@ -3,20 +3,37 @@ package middleware
 import (
 	"context"
 	"daily-notes/config"
+	"daily-notes/models"
 	"daily-notes/session"
+	"log"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/api/idtoken"
 )
 
+// TokenRefresher defines the interface for refreshing OAuth tokens
+type TokenRefresher interface {
+	RefreshTokenIfNeeded(session *models.Session) (interface{}, error)
+}
+
 // AuthRequired creates an authentication middleware that requires a valid session or Bearer token
-func AuthRequired(sessionStore *session.Store) fiber.Handler {
+// If a tokenRefresher is provided, it will automatically refresh expired tokens
+func AuthRequired(sessionStore *session.Store, tokenRefresher TokenRefresher) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		sessionID := c.Cookies("session_id")
 		if sessionID != "" {
 			sess, err := sessionStore.Get(sessionID)
 			if err == nil && sess != nil {
+				// Auto-refresh token if needed (only if tokenRefresher is provided)
+				if tokenRefresher != nil {
+					_, refreshErr := tokenRefresher.RefreshTokenIfNeeded(sess)
+					if refreshErr != nil {
+						log.Printf("[AUTH] Token refresh failed: %v", refreshErr)
+						// Continue anyway - the session might still be valid for some operations
+					}
+				}
+
 				c.Locals("userID", sess.UserID)
 				c.Locals("userEmail", sess.Email)
 				c.Locals("session", sess)
