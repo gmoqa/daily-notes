@@ -1276,7 +1276,7 @@ export class UIManager {
         // Set date
         dateEl.textContent = formattedDate;
 
-        // Get current note content using the markdown editor
+        // Get current note content as markdown
         const content = markdownEditor.getContent();
 
         // Create a read-only Quill instance for fullscreen
@@ -1292,7 +1292,9 @@ export class UIManager {
                 }
             });
 
-            fullscreenQuill.root.innerHTML = content;
+            // Convert markdown to Delta and set it in the editor
+            const delta = markdownEditor.markdownToDelta(content);
+            fullscreenQuill.setContents(delta);
 
             // Style the editor
             fullscreenQuill.root.style.fontSize = '16px';

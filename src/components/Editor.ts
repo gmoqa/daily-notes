@@ -287,7 +287,7 @@ class MarkdownEditor {
     }
   }
 
-  private markdownToDelta(markdown: string): QuillDelta {
+  markdownToDelta(markdown: string): QuillDelta {
     const ops: QuillOp[] = []
     const lines = markdown.split('\n')
 
