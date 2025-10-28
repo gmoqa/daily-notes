@@ -388,6 +388,11 @@ func (as *AuthService) RefreshTokenIfNeeded(session *models.Session) (interface{
 
 // HandlePostLogin performs post-login operations like importing from Drive
 func (as *AuthService) HandlePostLogin(loginResponse *LoginResponse) {
+	// Check if we have a valid token (nil for One Tap login)
+	if loginResponse.Token == nil {
+		return
+	}
+
 	// If user has no contexts and has a valid token, import from Drive in background
 	if loginResponse.HasNoContexts && as.syncWorker != nil && loginResponse.Token.AccessToken != "" {
 		go func() {
