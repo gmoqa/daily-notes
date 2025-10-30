@@ -13,6 +13,7 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
+	OpenAIAPIKey       string
 }
 
 var AppConfig *Config
@@ -26,6 +27,7 @@ func Load() {
 		GoogleClientID:     GetEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: GetEnv("GOOGLE_CLIENT_SECRET", ""),
 		GoogleRedirectURL:  GetEnv("GOOGLE_REDIRECT_URL", "postmessage"),
+		OpenAIAPIKey:       GetEnv("OPENAI_API_KEY", ""),
 	}
 
 	if AppConfig.GoogleClientID == "" {

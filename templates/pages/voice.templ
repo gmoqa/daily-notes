@@ -1,0 +1,139 @@
+package pages
+
+import (
+	"daily-notes/templates/layouts"
+)
+
+templ VoicePage(googleClientID string, env string, mainScript string, legacyPolyfills string, legacyMain string) {
+	@layouts.Base("Voice Transcription - dailynotes.dev", googleClientID, env, mainScript, legacyPolyfills, legacyMain) {
+		<link rel="stylesheet" href="/static/css/voice.css"/>
+		<div class="voice-container">
+			<header class="voice-header">
+				<a href="/" class="back-link">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+						<path d="M19 12H5M12 19l-7-7 7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+					</svg>
+					Back to notes
+				</a>
+			</header>
+
+			<main class="voice-main">
+				<div class="recorder-section">
+					<div class="recorder-card">
+						<div class="recorder-status" id="recorder-status">
+							<div class="status-indicator" id="status-indicator">
+								<span class="status-dot"></span>
+								<span class="status-text">Ready to record</span>
+							</div>
+							<div class="timer" id="timer">00:00</div>
+						</div>
+
+						<div class="recorder-controls">
+							<button id="record-btn" class="btn-record" aria-label="Start recording">
+								<svg class="icon-mic" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+									<path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3z"></path>
+									<path d="M19 11a7 7 0 0 1-14 0"></path>
+									<line x1="12" y1="19" x2="12" y2="23"></line>
+									<line x1="8" y1="23" x2="16" y2="23"></line>
+								</svg>
+								<span class="btn-text">Record</span>
+							</button>
+
+							<button id="stop-btn" class="btn-stop" disabled aria-label="Stop recording">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+									<rect x="6" y="6" width="12" height="12" rx="2"></rect>
+								</svg>
+								<span class="btn-text">Stop</span>
+							</button>
+
+							<button id="clear-btn" class="btn-clear" disabled aria-label="Clear">
+								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+									<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+								</svg>
+								<span class="btn-text">Clear</span>
+							</button>
+						</div>
+
+						<div class="audio-preview" id="audio-preview" style="display: none;">
+							<h3>Recorded audio</h3>
+							<audio id="audio-player" controls preload="metadata"></audio>
+							<div class="audio-info">
+								<span id="audio-duration">Duration: 0s</span>
+								<span id="audio-size">Size: 0 KB</span>
+							</div>
+						</div>
+
+						<div class="transcribe-section" id="transcribe-section" style="display: none;">
+							<div class="language-selector">
+								<label for="language-select">Language:</label>
+								<select id="language-select">
+									<option value="es" selected>Español</option>
+									<option value="en">English</option>
+									<option value="fr">Français</option>
+									<option value="de">Deutsch</option>
+									<option value="it">Italiano</option>
+									<option value="pt">Português</option>
+								</select>
+							</div>
+
+							<button id="transcribe-btn" class="btn-transcribe">
+								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+									<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+								</svg>
+								<span class="btn-text">Transcribe</span>
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<div class="result-section">
+					<div class="result-card">
+						<div class="result-header">
+							<h2>Transcription</h2>
+							<div class="result-actions" id="result-actions" style="display: none;">
+								<button id="copy-btn" class="btn-icon" aria-label="Copy text">
+									<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+										<rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-width="2"></rect>
+										<path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke-width="2"></path>
+									</svg>
+								</button>
+							</div>
+						</div>
+
+						<div class="result-content">
+							<div id="transcription-placeholder" class="placeholder">
+								<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" opacity="0.3">
+									<path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3z" stroke-width="2"></path>
+									<path d="M19 11a7 7 0 0 1-14 0" stroke-width="2" stroke-linecap="round"></path>
+									<line x1="12" y1="19" x2="12" y2="23" stroke-width="2" stroke-linecap="round"></line>
+									<line x1="8" y1="23" x2="16" y2="23" stroke-width="2" stroke-linecap="round"></line>
+								</svg>
+								<p>Transcription will appear here</p>
+							</div>
+
+							<div id="transcription-loading" class="loading" style="display: none;">
+								<div class="spinner"></div>
+								<p>Transcribing audio...</p>
+								<small>This may take a few seconds</small>
+							</div>
+
+							<div id="transcription-result" class="result-text" contenteditable="true" style="display: none;"></div>
+						</div>
+
+						<div id="transcription-meta" class="result-meta" style="display: none;">
+							<span id="char-count">0 characters</span>
+							<span id="word-count">0 words</span>
+							<span id="transcription-time"></span>
+						</div>
+					</div>
+				</div>
+			</main>
+
+			<div id="notification" class="notification" style="display: none;">
+				<span id="notification-text"></span>
+			</div>
+		</div>
+
+		<script type="module" src="/static/js/voice.js"></script>
+	}
+}

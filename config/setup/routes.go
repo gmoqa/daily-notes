@@ -33,6 +33,9 @@ func RegisterRoutes(fiberApp *fiber.App, application *app.App) {
 	fiberApp.All("/api/auth/logout", handlers.Logout(application)) // Accept both GET and POST
 	fiberApp.Get("/api/auth/me", handlers.Me(application))
 
+	// Protected page routes
+	fiberApp.Get("/voice", middleware.AuthRequired(application.SessionStore, application.AuthService), handlers.VoicePage)
+
 	// Protected API routes (with auto token refresh)
 	api := fiberApp.Group("/api", middleware.AuthRequired(application.SessionStore, application.AuthService), limiter.New(limiter.Config{
 		Max:        100,
@@ -61,4 +64,8 @@ func RegisterRoutes(fiberApp *fiber.App, application *app.App) {
 	api.Put("/settings", handlers.UpdateSettings(application))
 	api.Get("/sync/status", handlers.GetSyncStatus(application))
 	api.Post("/sync/retry/:id", handlers.RetryNoteSync(application))
+
+	// Voice/Speech-to-Text API routes
+	api.Post("/voice/transcribe", handlers.TranscribeAudio)
+	api.Get("/voice/status/:id", handlers.GetTranscriptionStatus)
 }

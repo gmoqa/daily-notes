@@ -150,6 +150,9 @@ export class UIManager {
             this.setTheme((e.target as HTMLInputElement).checked ? 'dark' : 'light');
         });
 
+        // Easter egg: 5 rapid clicks on clock to access voice page
+        this.setupVoiceEasterEgg();
+
         // Keyboard shortcuts
         this.setupKeyboardShortcuts();
     }
@@ -191,6 +194,39 @@ export class UIManager {
                 this.closeAllModals();
                 return;
             }
+        });
+    }
+
+    setupVoiceEasterEgg(): void {
+        let clickCount = 0;
+        let clickTimer: number | null = null;
+        const CLICK_THRESHOLD = 5;
+        const TIME_WINDOW = 2000; // 2 seconds window
+
+        // Get the clock element (desktop version)
+        const clockElement = document.getElementById('current-time');
+
+        if (!clockElement) return;
+
+        clockElement.addEventListener('click', () => {
+            clickCount++;
+
+            // Clear previous timer
+            if (clickTimer) {
+                clearTimeout(clickTimer);
+            }
+
+            // Check if threshold reached
+            if (clickCount >= CLICK_THRESHOLD) {
+                clickCount = 0;
+                window.location.href = '/voice';
+                return;
+            }
+
+            // Reset counter after time window
+            clickTimer = window.setTimeout(() => {
+                clickCount = 0;
+            }, TIME_WINDOW);
         });
     }
 
