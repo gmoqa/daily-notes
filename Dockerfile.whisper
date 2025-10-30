@@ -1,0 +1,61 @@
+# Whisper Server Dockerfile
+FROM debian:12-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    cmake \
+    build-essential \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone and build whisper.cpp
+WORKDIR /build
+RUN git clone https://github.com/ggerganov/whisper.cpp.git
+WORKDIR /build/whisper.cpp
+
+# Build whisper server
+RUN mkdir build && cd build && \
+    cmake .. && \
+    make -j$(nproc) whisper-server
+
+# Download base model
+RUN mkdir -p models && \
+    wget -q https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin \
+    -O models/ggml-base.bin
+
+# Runtime stage
+FROM debian:12-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 whisper
+
+# Copy built binary and model
+COPY --from=builder /build/whisper.cpp/build/bin/whisper-server /usr/local/bin/whisper-server
+COPY --from=builder /build/whisper.cpp/models/ggml-base.bin /models/ggml-base.bin
+
+# Create work directory
+RUN mkdir -p /tmp/whisper && chown whisper:whisper /tmp/whisper
+
+# Switch to non-root user
+USER whisper
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Run whisper server
+CMD ["/usr/local/bin/whisper-server", \
+     "-m", "/models/ggml-base.bin", \
+     "--host", "0.0.0.0", \
+     "--port", "8080", \
+     "-t", "4"]

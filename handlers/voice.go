@@ -71,8 +71,14 @@ func initLocalTranscriber() (*transcriber.LocalTranscriber, error) {
 	}
 
 	// Crear transcriber local
+	// Use environment variable for Docker compatibility
+	whisperURL := os.Getenv("WHISPER_SERVER_URL")
+	if whisperURL == "" {
+		whisperURL = "http://127.0.0.1:8080" // Default for local development
+	}
+
 	transcConfig := transcriber.LocalConfig{
-		ServerURL: "http://127.0.0.1:8080",
+		ServerURL: whisperURL,
 		Timeout:   120 * time.Second,
 	}
 

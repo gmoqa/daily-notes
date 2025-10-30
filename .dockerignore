@@ -29,10 +29,20 @@ vendor/
 
 # Documentation
 docs/
+*.md
+!README.md
+!DOCKER_DEPLOYMENT.md
 
 # CI/CD
 .circleci
 .travis.yml
+
+# Data directory (will be mounted as volume)
+data/
+
+# Docker files (not needed in build context for whisper)
+Dockerfile.whisper
+docker-compose.yml
 
 # Backups
 *.backup

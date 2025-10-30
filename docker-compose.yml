@@ -1,6 +1,32 @@
 services:
+  whisper:
+    build:
+      context: .
+      dockerfile: Dockerfile.whisper
+    container_name: whisper-server
+    ports:
+      - "127.0.0.1:8080:8080"  # Only accessible from localhost
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 512M
+          cpus: '1.0'
+    networks:
+      - dailynotes-network
+
   app:
     build: .
+    container_name: dailynotes-app
     ports:
       - "3000:3000"
     volumes:
@@ -14,10 +40,20 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_REDIRECT_URL=postmessage
       - CORS_ORIGINS=${CORS_ORIGINS:-https://dailynotes.dev,https://www.dailynotes.dev}
+      - WHISPER_SERVER_URL=http://whisper:8080  # Internal Docker network
     restart: unless-stopped
+    depends_on:
+      whisper:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - dailynotes-network
+
+networks:
+  dailynotes-network:
+    driver: bridge
