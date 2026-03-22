@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 )
 
@@ -59,6 +60,16 @@ func (m *MockSessionStore) Get(sessionID string) (*models.Session, error) {
 
 func (m *MockSessionStore) Delete(sessionID string) error {
 	args := m.Called(sessionID)
+	return args.Error(0)
+}
+
+func (m *MockSessionStore) Update(sessionID string, session *models.Session) error {
+	args := m.Called(sessionID, session)
+	return args.Error(0)
+}
+
+func (m *MockSessionStore) UpdateUserToken(userID string, accessToken, refreshToken string, tokenExpiry time.Time) error {
+	args := m.Called(userID, accessToken, refreshToken, tokenExpiry)
 	return args.Error(0)
 }
 
@@ -520,4 +531,57 @@ func TestAuthService_HandlePostLogin(t *testing.T) {
 
 	// Suppress unused variable warning
 	_ = now
+}
+
+func TestAuthService_RefreshTokenIfNeeded(t *testing.T) {
+	t.Run("Token still valid - returns current token", func(t *testing.T) {
+		mockSessionStore := new(MockSessionStore)
+		service := &AuthService{sessionStore: mockSessionStore}
+
+		session := &models.Session{
+			UserID:       "user1",
+			AccessToken:  "valid-token",
+			RefreshToken: "refresh-token",
+			TokenExpiry:  time.Now().Add(1 * time.Hour), // expires in 1 hour
+		}
+
+		result, err := service.RefreshTokenIfNeeded(session)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		token := result.(*oauth2.Token)
+		assert.Equal(t, "valid-token", token.AccessToken)
+		assert.Equal(t, "refresh-token", token.RefreshToken)
+	})
+
+	t.Run("Token expiring - no refresh token returns error", func(t *testing.T) {
+		mockSessionStore := new(MockSessionStore)
+		service := &AuthService{sessionStore: mockSessionStore}
+
+		session := &models.Session{
+			UserID:       "user1",
+			AccessToken:  "expired-token",
+			RefreshToken: "", // no refresh token
+			TokenExpiry:  time.Now().Add(-1 * time.Hour), // already expired
+		}
+
+		result, err := service.RefreshTokenIfNeeded(session)
+		assert.ErrorIs(t, err, ErrNoRefreshToken)
+		assert.Nil(t, result)
+	})
+}
+
+func TestNewNoteService(t *testing.T) {
+	service := NewNoteService(nil, nil)
+	assert.NotNil(t, service)
+}
+
+func TestNewContextService(t *testing.T) {
+	service := NewContextService(nil, nil)
+	assert.NotNil(t, service)
+}
+
+func TestNewAuthService(t *testing.T) {
+	service := NewAuthService(nil, nil, nil, nil)
+	assert.NotNil(t, service)
 }
