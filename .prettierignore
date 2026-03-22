@@ -1,6 +1,0 @@
-node_modules
-static/dist
-coverage
-*.templ.go
-go.sum
-go.mod
