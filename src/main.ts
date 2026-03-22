@@ -26,6 +26,8 @@ declare global {
 
 class Application {
   private syncQueue: SyncQueue | null = null
+  private eventCleanups: (() => void)[] = []
+  private serverTimeSyncTimer: number | null = null
 
   async init(googleClientId: string): Promise<void> {
     console.log('[MAIN] Initializing with client ID:', googleClientId)
@@ -75,26 +77,34 @@ class Application {
   }
 
   private setupEventHandlers(): void {
+    // Clean up previous event handlers (prevents duplicates on re-login)
+    this.eventCleanups.forEach(cleanup => cleanup())
+    this.eventCleanups = []
+
+    const on = <T extends string>(name: T, cb: (e: CustomEvent) => void) => {
+      this.eventCleanups.push(events.on(name as any, cb))
+    }
+
     // Sync events
-    events.on('sync-add' as any, (e: CustomEvent) => {
+    on('sync-add', (e: CustomEvent) => {
       this.syncQueue?.add(e.detail)
     })
 
-    events.on('sync-force' as any, () => {
+    on('sync-force', () => {
       if (this.syncQueue && this.syncQueue.getPendingCount() > 0) {
         this.syncQueue.process()
       }
     })
 
-    events.on(EVENT.SYNC_STATUS, (e: CustomEvent) => {
+    on(EVENT.SYNC_STATUS, (e: CustomEvent) => {
       ui.updateSyncStatus(e.detail)
     })
 
-    events.on(EVENT.OPERATION_SYNCED, (e: CustomEvent) => {
+    on(EVENT.OPERATION_SYNCED, (e: CustomEvent) => {
       console.log('Synced to server:', e.detail.type)
     })
 
-    events.on(EVENT.SYNC_ERROR, (e: CustomEvent) => {
+    on(EVENT.SYNC_ERROR, (e: CustomEvent) => {
       const { error, maxRetriesReached, retryCount, maxRetries } = e.detail
 
       if (maxRetriesReached) {
@@ -111,7 +121,7 @@ class Application {
     })
 
     // Session expired handling
-    events.on('session-expired' as any, (e: CustomEvent) => {
+    on('session-expired', (e: CustomEvent) => {
       if (e.detail.isNoteRequest) {
         notifications.warning(
           'Session expired. Your notes are saved locally and will sync when you sign in again.',
@@ -124,23 +134,19 @@ class Application {
     })
 
     // Note events
-    events.on(EVENT.NOTE_LOADED, (e: CustomEvent) => {
+    on(EVENT.NOTE_LOADED, (e: CustomEvent) => {
       markdownEditor.setContent(e.detail.content)
     })
 
-    events.on(EVENT.NOTE_SAVED, () => {
+    on(EVENT.NOTE_SAVED, () => {
       console.log('[Note] Saved')
     })
 
     // Context events
-    events.on(EVENT.CONTEXT_CHANGED, async (e: CustomEvent) => {
+    on(EVENT.CONTEXT_CHANGED, async (e: CustomEvent) => {
       const context = e.detail.context
 
-      // Force flush any pending editor changes
-      markdownEditor.forceFlush()
-
-      // Wait for flush to process
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Note: pending save is flushed in selectContext() BEFORE state changes
 
       if (context) {
         let selectedDate = state.get('selectedDate')
@@ -162,44 +168,34 @@ class Application {
     })
 
     // Date events
-    events.on(EVENT.DATE_CHANGED, async (e: CustomEvent) => {
-      const dateStr = e.detail.date
-      const context = state.get('selectedContext')
-
-      // Force flush pending changes
-      markdownEditor.forceFlush()
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      if (context) {
-        const currentContext = state.get('selectedContext')
-        const currentDate = state.get('selectedDate')
-
-        if (currentContext !== context || currentDate !== dateStr) {
-          console.log('[MAIN] Context/date changed during handler, skipping')
-          return
-        }
-
-        await notes.loadNote(context, dateStr)
-      }
-    })
+    // Note: pending save is flushed in selectDate() BEFORE state changes
+    // The loadNote call here is intentionally removed to avoid double-loading
+    // (selectDate already calls loadNote after updating state)
 
     // Auth events
-    events.on('auth-success' as any, async () => {
+    on('auth-success', async () => {
       await this.showApp()
     })
 
-    events.on('auth-logout' as any, () => {
+    on('auth-logout', () => {
       markdownEditor.setContent('')
+      // Cancel recurring server time sync
+      if (this.serverTimeSyncTimer) {
+        clearTimeout(this.serverTimeSyncTimer)
+        this.serverTimeSyncTimer = null
+      }
+      // Stop clock interval
+      ui.stopClock()
     })
 
     // UI events
-    events.on(EVENT.SHOW_ERROR, (e: CustomEvent) => {
+    on(EVENT.SHOW_ERROR, (e: CustomEvent) => {
       if (e.detail.message) {
         notifications.error(e.detail.message)
       }
     })
 
-    events.on(EVENT.SHOW_SUCCESS, (e: CustomEvent) => {
+    on(EVENT.SHOW_SUCCESS, (e: CustomEvent) => {
       if (e.detail.message) {
         notifications.success(e.detail.message)
       }
@@ -273,8 +269,8 @@ class Application {
       state.set('serverTimeOffset', 0)
     }
 
-    // Resync every minute
-    setTimeout(() => this.syncServerTime(), 60000)
+    // Resync every minute (store timer so it can be cancelled on logout)
+    this.serverTimeSyncTimer = window.setTimeout(() => this.syncServerTime(), 60000)
   }
 
 }

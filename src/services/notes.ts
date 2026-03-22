@@ -14,6 +14,9 @@ class NotesManager {
   private currentNoteContent = ''
   private currentLoadToken = 0 // Token to cancel old load operations
   private currentSelectToken = 0 // Token to cancel old date selection operations
+  private pendingSaveContext: string | null = null
+  private pendingSaveDate: string | null = null
+  private userEditedSinceLoad = false // Tracks if user typed since last loadNote
 
   async loadNote(context: string, date: string): Promise<Note | null> {
     if (!context || !date) {
@@ -22,6 +25,7 @@ class NotesManager {
 
     // Increment token to cancel any previous load operations
     const loadToken = ++this.currentLoadToken
+    this.userEditedSinceLoad = false
     console.log(`[Notes] loadNote started - token: ${loadToken}, context: ${context}, date: ${date}`)
 
     // Try local cache first (instant load)
@@ -53,12 +57,34 @@ class NotesManager {
 
     // Then load from server in background
     try {
-      const { note } = await api.getNote(context, date)
+      const response = await api.getNote(context, date)
+      const note = response?.note
 
       // Validate token before applying server data
       if (loadToken !== this.currentLoadToken) {
         console.log(`[Notes] Load cancelled (server) - token ${loadToken} is stale`)
         return null
+      }
+
+      // Guard against malformed server response
+      if (!note) {
+        console.warn('[Notes] Server returned no note data')
+        return cachedNote
+      }
+
+      // CRITICAL: If user has typed since we started loading, do NOT overwrite their work.
+      // Their edits take priority over server data — the debounce will save them.
+      if (this.userEditedSinceLoad) {
+        console.log('[Notes] User edited since load started, skipping server overwrite')
+        // Still update cache silently so next load has server data
+        await cache.saveNote({
+          ...note,
+          context,
+          date,
+          content: note.content,
+          updated_at: note.updated_at
+        })
+        return note
       }
 
       // Determine which version is more recent
@@ -116,6 +142,8 @@ class NotesManager {
     }
   }
 
+  private activeSaveRequest: AbortController | null = null
+
   async saveNote(context: string, date: string, content: string): Promise<void> {
     if (!context || !date) return
 
@@ -140,14 +168,30 @@ class NotesManager {
     // 2. Update note in the list (update content, keep position)
     this.updateNoteInList(context, date, content)
 
-    // 3. Sync to server immediately (backend will handle Drive sync)
+    // 3. Sync to server — cancel any in-flight save for this note to avoid stale overwrites
+    if (this.activeSaveRequest) {
+      this.activeSaveRequest.abort()
+    }
+    const controller = new AbortController()
+    this.activeSaveRequest = controller
+
     console.log(`[Notes] Syncing to server - content length: ${content.length}`)
     try {
-      await api.saveNote({ context, date, content, updated_at: now })
+      await api.saveNote({ context, date, content, updated_at: now }, controller.signal)
       console.log(`[Notes] Successfully synced to server`)
     } catch (error) {
+      // Ignore aborted requests (superseded by newer save)
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.log('[Notes] Previous save aborted (superseded by newer save)')
+        return
+      }
       console.error('[Notes] Failed to sync to server:', error)
       // Note is still saved locally in cache, will retry on next app load
+    } finally {
+      // Only clear if this is still the active request (not replaced by a newer one)
+      if (this.activeSaveRequest === controller) {
+        this.activeSaveRequest = null
+      }
     }
   }
 
@@ -264,6 +308,9 @@ class NotesManager {
       clearTimeout(this.saveTimeout)
     }
 
+    // Mark that user has edited — prevents server response from overwriting
+    this.userEditedSinceLoad = true
+
     // Update current content IMMEDIATELY to track user input
     this.currentNoteContent = content
 
@@ -273,8 +320,15 @@ class NotesManager {
 
     if (!capturedContext || !capturedDate) return
 
+    // Track pending save target so flushPendingSave can use the correct context/date
+    this.pendingSaveContext = capturedContext
+    this.pendingSaveDate = capturedDate
+
     // Debounce save - reduced from 1000ms to 500ms for better UX
     this.saveTimeout = window.setTimeout(() => {
+      this.pendingSaveContext = null
+      this.pendingSaveDate = null
+
       // Re-validate that context and date haven't changed
       const currentContext = state.get('selectedContext')
       const currentDate = state.get('selectedDate')
@@ -293,7 +347,29 @@ class NotesManager {
     }, 500)
   }
 
+  /**
+   * Immediately save any pending debounced note using the originally captured context/date.
+   * Must be called BEFORE state changes (selectedDate/selectedContext) to prevent data loss.
+   */
+  flushPendingSave(): void {
+    if (this.saveTimeout && this.pendingSaveContext && this.pendingSaveDate) {
+      clearTimeout(this.saveTimeout)
+      this.saveTimeout = null
+
+      const ctx = this.pendingSaveContext
+      const date = this.pendingSaveDate
+      this.pendingSaveContext = null
+      this.pendingSaveDate = null
+
+      console.log(`[Notes] Flushing pending save - context: ${ctx}, date: ${date}`)
+      this.saveNote(ctx, date, this.currentNoteContent)
+    }
+  }
+
   async selectDate(dateStr: string): Promise<void> {
+    // Flush pending save for the CURRENT note BEFORE changing state
+    this.flushPendingSave()
+
     // Increment token to cancel any previous select operations
     const selectToken = ++this.currentSelectToken
     console.log(`[Notes] selectDate started - token: ${selectToken}, date: ${dateStr}`)
@@ -358,6 +434,8 @@ class NotesManager {
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout)
       this.saveTimeout = null
+      this.pendingSaveContext = null
+      this.pendingSaveDate = null
       console.log('[Notes] Cancelled pending save operation')
     }
 

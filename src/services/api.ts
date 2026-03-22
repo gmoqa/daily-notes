@@ -75,6 +75,10 @@ export class APIClient {
 
       return await response.json()
     } catch (error) {
+      // Don't show notifications for aborted requests or during logout
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error
+      }
       if (!state.get('isLoggingOut')) {
         // Don't show error notification if it's already been handled
         if (error instanceof Error && !error.message.includes('Session expired')) {
@@ -161,10 +165,11 @@ export class APIClient {
     )
   }
 
-  async saveNote(data: { context: string; date: string; content: string; updated_at?: string }): Promise<Note> {
+  async saveNote(data: { context: string; date: string; content: string; updated_at?: string }, signal?: AbortSignal): Promise<Note> {
     return await this.request<Note>('/api/notes', {
       method: 'POST',
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
+      signal
     })
   }
 
@@ -193,7 +198,12 @@ export class APIClient {
 
   // Time sync
   async getServerTime(timezone: string): Promise<ServerTimeResponse> {
-    const response = await fetch(`/api/time?timezone=${encodeURIComponent(timezone)}`)
+    const response = await fetch(`/api/time?timezone=${encodeURIComponent(timezone)}`, {
+      credentials: 'same-origin'
+    })
+    if (!response.ok) {
+      throw new Error(`Server time request failed: ${response.status}`)
+    }
     return await response.json()
   }
 }

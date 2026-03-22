@@ -78,8 +78,14 @@ export class LocalCache {
     }, this.BATCH_DELAY)
   }
 
-  private async flushPendingWrites(): Promise<void> {
+  async flushPendingWrites(): Promise<void> {
     if (!this.db || this.pendingWrites.size === 0) return
+
+    // Cancel pending batch timer since we're flushing now
+    if (this.writeTimer) {
+      clearTimeout(this.writeTimer)
+      this.writeTimer = null
+    }
 
     const notesToWrite = Array.from(this.pendingWrites.values())
     this.pendingWrites.clear()
@@ -123,11 +129,18 @@ export class LocalCache {
   }
 
   async getNote(context: string, date: string): Promise<CachedNote | null> {
+    const id = `${context}-${date}`
+
+    // Check pending writes first (not yet flushed to IndexedDB)
+    const pending = this.pendingWrites.get(id)
+    if (pending) {
+      return pending
+    }
+
     if (!this.db) return null
 
     const tx = this.db.transaction(['notes'], 'readonly')
     const store = tx.objectStore('notes')
-    const id = `${context}-${date}`
 
     return new Promise((resolve) => {
       const request = store.get(id)
@@ -238,6 +251,9 @@ export class LocalCache {
 
   async clear(): Promise<void> {
     if (!this.db) return
+
+    // Flush any pending batch writes before clearing
+    await this.flushPendingWrites()
 
     const tx = this.db.transaction(['notes', 'contexts'], 'readwrite')
 

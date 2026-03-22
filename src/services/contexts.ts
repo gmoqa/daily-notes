@@ -7,6 +7,7 @@ import { state } from '@/utils/state'
 import { api } from './api'
 import { cache } from '@/utils/cache'
 import { events, EVENT } from '@/utils/events'
+import { notes } from './notes'
 import type { Context } from '@/types'
 
 class ContextsManager {
@@ -100,6 +101,9 @@ class ContextsManager {
   }
 
   async deleteContext(contextId: string): Promise<void> {
+    // Flush pending save before deleting context to prevent data loss
+    notes.flushPendingSave()
+
     try {
       await api.deleteContext(contextId)
 
@@ -116,6 +120,9 @@ class ContextsManager {
   }
 
   selectContext(contextName: string | null): void {
+    // Flush pending save for the CURRENT note BEFORE changing context
+    notes.flushPendingSave()
+
     state.set('selectedContext', contextName)
     events.emit(EVENT.CONTEXT_CHANGED, { context: contextName })
 
