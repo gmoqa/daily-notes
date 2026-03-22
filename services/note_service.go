@@ -120,6 +120,6 @@ func (ns *NoteService) RetrySync(noteID, userID string) error {
 		return ErrUnauthorized
 	}
 
-	// Reset the note's sync status to retry
-	return ns.repo.RetrySyncNote(noteID)
+	// Reset the note's sync status to retry (scoped to user at DB level)
+	return ns.repo.RetrySyncNote(noteID, userID)
 }

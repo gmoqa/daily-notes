@@ -53,14 +53,14 @@ func (r *Repository) GetContextByName(userID, name string) (*models.Context, err
 	return &ctx, nil
 }
 
-// GetContextByID retrieves a context by its ID
-func (r *Repository) GetContextByID(contextID string) (*models.Context, error) {
+// GetContextByID retrieves a context by its ID (scoped to user)
+func (r *Repository) GetContextByID(contextID, userID string) (*models.Context, error) {
 	var ctx models.Context
 	err := r.db.QueryRow(`
 		SELECT id, user_id, name, color, created_at
 		FROM contexts
-		WHERE id = ?
-	`, contextID).Scan(&ctx.ID, &ctx.UserID, &ctx.Name, &ctx.Color, &ctx.CreatedAt)
+		WHERE id = ? AND user_id = ?
+	`, contextID, userID).Scan(&ctx.ID, &ctx.UserID, &ctx.Name, &ctx.Color, &ctx.CreatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil

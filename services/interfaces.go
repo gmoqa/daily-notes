@@ -18,7 +18,7 @@ type NoteRepository interface {
 	GetNotesByContext(userID, contextName string, limit, offset int) ([]models.Note, error)
 	GetFailedSyncNotes(userID string, limit int) ([]models.Note, error)
 	GetPendingSyncNotes(limit int) ([]database.NoteWithMeta, error)
-	RetrySyncNote(noteID string) error
+	RetrySyncNote(noteID, userID string) error
 }
 
 // SyncWorker defines the interface for background sync operations
@@ -31,7 +31,7 @@ type SyncWorker interface {
 type ContextRepository interface {
 	GetContexts(userID string) ([]models.Context, error)
 	GetContextByName(userID, name string) (*models.Context, error)
-	GetContextByID(contextID string) (*models.Context, error)
+	GetContextByID(contextID, userID string) (*models.Context, error)
 	CreateContext(ctx *models.Context) error
 	UpdateContext(contextID, name, color, userID string) error
 	UpdateNotesContextName(oldName, newName, userID string) error

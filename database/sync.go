@@ -166,14 +166,14 @@ func (r *Repository) GetFailedSyncNotes(userID string, limit int) ([]models.Note
 
 // RetrySyncNote resets a failed note's sync status to retry synchronization
 // Clears the error and retry count to give it a fresh start
-func (r *Repository) RetrySyncNote(noteID string) error {
+func (r *Repository) RetrySyncNote(noteID, userID string) error {
 	_, err := r.db.Exec(`
 		UPDATE notes SET
 			sync_pending = 1,
 			sync_status = ?,
 			sync_retry_count = 0,
 			sync_error = NULL
-		WHERE id = ?
-	`, string(models.SyncStatusPending), noteID)
+		WHERE id = ? AND user_id = ?
+	`, string(models.SyncStatusPending), noteID, userID)
 	return err
 }

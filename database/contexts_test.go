@@ -27,7 +27,7 @@ func TestContextCRUD(t *testing.T) {
 	})
 
 	t.Run("GetContextByID", func(t *testing.T) {
-		got, err := repo.GetContextByID("ctx-1")
+		got, err := repo.GetContextByID("ctx-1", "test-user")
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		assert.Equal(t, "Work", got.Name)
@@ -35,8 +35,14 @@ func TestContextCRUD(t *testing.T) {
 		assert.Equal(t, "test-user", got.UserID)
 	})
 
+	t.Run("GetContextByID wrong user", func(t *testing.T) {
+		got, err := repo.GetContextByID("ctx-1", "attacker-user")
+		require.NoError(t, err)
+		assert.Nil(t, got) // cannot see another user's context
+	})
+
 	t.Run("GetContextByID not found", func(t *testing.T) {
-		got, err := repo.GetContextByID("nonexistent")
+		got, err := repo.GetContextByID("nonexistent", "test-user")
 		require.NoError(t, err)
 		assert.Nil(t, got)
 	})
@@ -87,7 +93,7 @@ func TestContextCRUD(t *testing.T) {
 		err := repo.UpdateContext("ctx-1", "Projects", "danger", "test-user")
 		require.NoError(t, err)
 
-		got, err := repo.GetContextByID("ctx-1")
+		got, err := repo.GetContextByID("ctx-1", "test-user")
 		require.NoError(t, err)
 		assert.Equal(t, "Projects", got.Name)
 		assert.Equal(t, "danger", got.Color)
@@ -98,7 +104,7 @@ func TestContextCRUD(t *testing.T) {
 		assert.Error(t, err)
 
 		// Verify context was NOT updated
-		got, err := repo.GetContextByID("ctx-1")
+		got, err := repo.GetContextByID("ctx-1", "test-user")
 		require.NoError(t, err)
 		assert.Equal(t, "Projects", got.Name) // unchanged
 	})
@@ -135,7 +141,7 @@ func TestContextCRUD(t *testing.T) {
 		err := repo.DeleteContext("ctx-2", "test-user")
 		require.NoError(t, err)
 
-		got, err := repo.GetContextByID("ctx-2")
+		got, err := repo.GetContextByID("ctx-2", "test-user")
 		require.NoError(t, err)
 		assert.Nil(t, got)
 	})
@@ -145,7 +151,7 @@ func TestContextCRUD(t *testing.T) {
 		assert.Error(t, err)
 
 		// Context should still exist
-		got, err := repo.GetContextByID("ctx-1")
+		got, err := repo.GetContextByID("ctx-1", "test-user")
 		require.NoError(t, err)
 		assert.NotNil(t, got)
 	})

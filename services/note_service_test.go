@@ -64,8 +64,8 @@ func (m *MockRepository) GetPendingSyncNotes(limit int) ([]database.NoteWithMeta
 	return args.Get(0).([]database.NoteWithMeta), args.Error(1)
 }
 
-func (m *MockRepository) RetrySyncNote(noteID string) error {
-	args := m.Called(noteID)
+func (m *MockRepository) RetrySyncNote(noteID, userID string) error {
+	args := m.Called(noteID, userID)
 	return args.Error(0)
 }
 
@@ -569,7 +569,7 @@ func TestNoteService_RetrySync(t *testing.T) {
 			noteID: "user123-work-2025-10-18",
 			userID: "user123",
 			mockSetup: func(repo *MockRepository) {
-				repo.On("RetrySyncNote", "user123-work-2025-10-18").Return(nil)
+				repo.On("RetrySyncNote", "user123-work-2025-10-18", "user123").Return(nil)
 			},
 			expectedError: nil,
 		},
@@ -592,7 +592,7 @@ func TestNoteService_RetrySync(t *testing.T) {
 			noteID: "user123-work-2025-10-18",
 			userID: "user123",
 			mockSetup: func(repo *MockRepository) {
-				repo.On("RetrySyncNote", "user123-work-2025-10-18").Return(errors.New("database error"))
+				repo.On("RetrySyncNote", "user123-work-2025-10-18", "user123").Return(errors.New("database error"))
 			},
 			expectedError: errors.New("database error"),
 		},

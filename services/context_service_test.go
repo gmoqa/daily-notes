@@ -38,8 +38,8 @@ func (m *MockContextRepository) GetContextByName(userID, name string) (*models.C
 	return args.Get(0).(*models.Context), args.Error(1)
 }
 
-func (m *MockContextRepository) GetContextByID(contextID string) (*models.Context, error) {
-	args := m.Called(contextID)
+func (m *MockContextRepository) GetContextByID(contextID, userID string) (*models.Context, error) {
+	args := m.Called(contextID, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -375,7 +375,7 @@ func TestContextService_Update(t *testing.T) {
 			token:     nil,
 			mockRepoSetup: func(repo *MockContextRepository) {
 				oldCtx := &models.Context{ID: "ctx1", UserID: "user123", Name: "work", Color: "primary"}
-				repo.On("GetContextByID", "ctx1").Return(oldCtx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(oldCtx, nil)
 				repo.On("UpdateContext", "ctx1", "work", "danger", "user123").Return(nil)
 			},
 			expectedError: nil,
@@ -389,7 +389,7 @@ func TestContextService_Update(t *testing.T) {
 			token:     nil,
 			mockRepoSetup: func(repo *MockContextRepository) {
 				oldCtx := &models.Context{ID: "ctx1", UserID: "user123", Name: "work", Color: "primary"}
-				repo.On("GetContextByID", "ctx1").Return(oldCtx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(oldCtx, nil)
 				repo.On("UpdateContext", "ctx1", "projects", "info", "user123").Return(nil)
 				repo.On("UpdateNotesContextName", "work", "projects", "user123").Return(nil)
 			},
@@ -404,7 +404,7 @@ func TestContextService_Update(t *testing.T) {
 			token:     nil,
 			mockRepoSetup: func(repo *MockContextRepository) {
 				oldCtx := &models.Context{ID: "ctx1", UserID: "user123", Name: "work", Color: "info"}
-				repo.On("GetContextByID", "ctx1").Return(oldCtx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(oldCtx, nil)
 				repo.On("UpdateContext", "ctx1", "work", "primary", "user123").Return(nil)
 			},
 			expectedError: nil,
@@ -418,7 +418,7 @@ func TestContextService_Update(t *testing.T) {
 			token:     nil,
 			mockRepoSetup: func(repo *MockContextRepository) {
 				oldCtx := &models.Context{ID: "ctx1", UserID: "user123", Name: "work", Color: "info"}
-				repo.On("GetContextByID", "ctx1").Return(oldCtx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(oldCtx, nil)
 				repo.On("UpdateContext", "ctx1", "work", "primary", "user123").Return(nil) // Default color
 			},
 			expectedError: nil,
@@ -431,7 +431,7 @@ func TestContextService_Update(t *testing.T) {
 			userID:    "user123",
 			token:     nil,
 			mockRepoSetup: func(repo *MockContextRepository) {
-				repo.On("GetContextByID", "ctx1").Return(nil, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(nil, nil)
 			},
 			expectedError: ErrContextNotFound,
 		},
@@ -443,7 +443,7 @@ func TestContextService_Update(t *testing.T) {
 			userID:    "user123",
 			token:     nil,
 			mockRepoSetup: func(repo *MockContextRepository) {
-				repo.On("GetContextByID", "ctx1").Return(nil, errors.New("database error"))
+				repo.On("GetContextByID", "ctx1", "user123").Return(nil, errors.New("database error"))
 			},
 			expectedError: errors.New("database error"),
 		},
@@ -456,7 +456,7 @@ func TestContextService_Update(t *testing.T) {
 			token:     nil,
 			mockRepoSetup: func(repo *MockContextRepository) {
 				oldCtx := &models.Context{ID: "ctx1", UserID: "user123", Name: "work", Color: "info"}
-				repo.On("GetContextByID", "ctx1").Return(oldCtx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(oldCtx, nil)
 				repo.On("UpdateContext", "ctx1", "work", "primary", "user123").Return(errors.New("database error"))
 			},
 			expectedError: errors.New("database error"),
@@ -470,7 +470,7 @@ func TestContextService_Update(t *testing.T) {
 			token:     nil,
 			mockRepoSetup: func(repo *MockContextRepository) {
 				oldCtx := &models.Context{ID: "ctx1", UserID: "user123", Name: "work", Color: "primary"}
-				repo.On("GetContextByID", "ctx1").Return(oldCtx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(oldCtx, nil)
 				repo.On("UpdateContext", "ctx1", "projects", "info", "user123").Return(nil)
 				repo.On("UpdateNotesContextName", "work", "projects", "user123").Return(errors.New("database error"))
 			},
@@ -533,7 +533,7 @@ func TestContextService_Delete(t *testing.T) {
 			token:     nil,
 			mockSetup: func(repo *MockContextRepository) {
 				ctx := &models.Context{ID: "ctx1", UserID: "user123", Name: "work"}
-				repo.On("GetContextByID", "ctx1").Return(ctx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(ctx, nil)
 				repo.On("GetNotesByContext", "user123", "work", 1000, 0).Return([]models.Note{}, nil)
 				repo.On("DeleteContext", "ctx1", "user123").Return(nil)
 			},
@@ -550,7 +550,7 @@ func TestContextService_Delete(t *testing.T) {
 					{ID: "note1", Date: "2025-10-18"},
 					{ID: "note2", Date: "2025-10-17"},
 				}
-				repo.On("GetContextByID", "ctx1").Return(ctx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(ctx, nil)
 				repo.On("GetNotesByContext", "user123", "work", 1000, 0).Return(notes, nil)
 				repo.On("DeleteNote", "user123", "work", "2025-10-18").Return(nil)
 				repo.On("DeleteNote", "user123", "work", "2025-10-17").Return(nil)
@@ -569,7 +569,7 @@ func TestContextService_Delete(t *testing.T) {
 					{ID: "note1", Date: "2025-10-18"},
 					{ID: "note2", Date: "2025-10-17"},
 				}
-				repo.On("GetContextByID", "ctx1").Return(ctx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(ctx, nil)
 				repo.On("GetNotesByContext", "user123", "work", 1000, 0).Return(notes, nil)
 				repo.On("DeleteNote", "user123", "work", "2025-10-18").Return(errors.New("note error"))
 				repo.On("DeleteNote", "user123", "work", "2025-10-17").Return(nil)
@@ -583,7 +583,7 @@ func TestContextService_Delete(t *testing.T) {
 			userID:    "user123",
 			token:     nil,
 			mockSetup: func(repo *MockContextRepository) {
-				repo.On("GetContextByID", "ctx1").Return(nil, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(nil, nil)
 			},
 			expectedError: ErrContextNotFound,
 		},
@@ -593,7 +593,7 @@ func TestContextService_Delete(t *testing.T) {
 			userID:    "user123",
 			token:     nil,
 			mockSetup: func(repo *MockContextRepository) {
-				repo.On("GetContextByID", "ctx1").Return(nil, errors.New("database error"))
+				repo.On("GetContextByID", "ctx1", "user123").Return(nil, errors.New("database error"))
 			},
 			expectedError: errors.New("database error"),
 		},
@@ -604,7 +604,7 @@ func TestContextService_Delete(t *testing.T) {
 			token:     nil,
 			mockSetup: func(repo *MockContextRepository) {
 				ctx := &models.Context{ID: "ctx1", UserID: "user123", Name: "work"}
-				repo.On("GetContextByID", "ctx1").Return(ctx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(ctx, nil)
 				repo.On("GetNotesByContext", "user123", "work", 1000, 0).Return(nil, errors.New("database error"))
 			},
 			expectedError: errors.New("database error"),
@@ -616,7 +616,7 @@ func TestContextService_Delete(t *testing.T) {
 			token:     nil,
 			mockSetup: func(repo *MockContextRepository) {
 				ctx := &models.Context{ID: "ctx1", UserID: "user123", Name: "work"}
-				repo.On("GetContextByID", "ctx1").Return(ctx, nil)
+				repo.On("GetContextByID", "ctx1", "user123").Return(ctx, nil)
 				repo.On("GetNotesByContext", "user123", "work", 1000, 0).Return([]models.Note{}, nil)
 				repo.On("DeleteContext", "ctx1", "user123").Return(errors.New("database error"))
 			},

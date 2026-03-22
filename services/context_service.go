@@ -74,18 +74,13 @@ func (cs *ContextService) Update(contextID, name, color string, userID string, t
 		color = "primary"
 	}
 
-	// Get the old context to check if name is changing
-	oldContext, err := cs.repo.GetContextByID(contextID)
+	// Get the old context (scoped to user — returns nil if not owned)
+	oldContext, err := cs.repo.GetContextByID(contextID, userID)
 	if err != nil {
 		return err
 	}
 	if oldContext == nil {
 		return ErrContextNotFound
-	}
-
-	// Verify ownership
-	if oldContext.UserID != userID {
-		return ErrUnauthorized
 	}
 
 	// Check if name changed
@@ -113,18 +108,13 @@ func (cs *ContextService) Update(contextID, name, color string, userID string, t
 
 // Delete deletes a context and its notes
 func (cs *ContextService) Delete(contextID, userID string, token *oauth2.Token) error {
-	// Get the context to retrieve its name
-	ctx, err := cs.repo.GetContextByID(contextID)
+	// Get the context (scoped to user — returns nil if not owned)
+	ctx, err := cs.repo.GetContextByID(contextID, userID)
 	if err != nil {
 		return err
 	}
 	if ctx == nil {
 		return ErrContextNotFound
-	}
-
-	// Verify ownership
-	if ctx.UserID != userID {
-		return ErrUnauthorized
 	}
 
 	// Get all notes for this context and mark them as deleted

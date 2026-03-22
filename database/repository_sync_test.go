@@ -211,7 +211,7 @@ func TestSyncStateManagement(t *testing.T) {
 		require.NoError(t, err)
 
 		// Retry
-		err = repo.RetrySyncNote(noteID)
+		err = repo.RetrySyncNote(noteID, "test-user")
 		require.NoError(t, err)
 
 		retrieved, err := repo.GetNote("test-user", "Retry", "2025-10-17")
