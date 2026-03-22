@@ -16,12 +16,23 @@ import { cacheElements } from './ui/elements'
 import { normalizeToBulmaColor, getColorLabel, setupColorButtons, selectColorButton } from './ui/colors'
 import type { UIElements, SyncStatusOptions, NotificationOptions } from './ui/types'
 
+/** Escape a string for safe HTML interpolation */
+function escapeHtml(str: string): string {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
 export class UIManager {
     elements: UIElements;
     lastKnownDate: string | null;
     INITIAL_RENDER_COUNT: number;
     renderedNotesCount: number;
     clockStarted: boolean;
+    private clockInterval: number | null = null;
 
     constructor() {
         this.elements = {} as UIElements;
@@ -361,7 +372,7 @@ export class UIManager {
 
         const optionsHTML = '<option value="">Select context...</option>' +
             contextsList.map(c =>
-                `<option value="${c.name}" data-color="${c.color || 'primary'}">${c.name}</option>`
+                `<option value="${escapeHtml(c.name)}" data-color="${escapeHtml(c.color || 'primary')}">${escapeHtml(c.name)}</option>`
             ).join('');
 
         // Update desktop selector
@@ -870,7 +881,15 @@ export class UIManager {
         this.clockStarted = true;
         console.log('[UI] Starting clock with server time sync');
         this.updateCurrentDateTime();
-        setInterval(() => this.updateCurrentDateTime(), 1000);
+        this.clockInterval = window.setInterval(() => this.updateCurrentDateTime(), 1000);
+    }
+
+    stopClock(): void {
+        if (this.clockInterval) {
+            clearInterval(this.clockInterval);
+            this.clockInterval = null;
+        }
+        this.clockStarted = false;
     }
 
     updateCurrentDateTime(): void {
@@ -1063,17 +1082,19 @@ export class UIManager {
         container.innerHTML = contextsList.map((ctx, _index) => {
             // Normalize old hex colors to Bulma colors
             const normalizedColor = normalizeToBulmaColor(ctx.color);
+            const safeName = escapeHtml(ctx.name);
+            const safeId = escapeHtml(ctx.id);
 
             return `
             <div class="is-flex is-align-items-center is-justify-content-space-between mb-3"
                  style="padding: 0.75rem 1rem; background: var(--bulma-scheme-main-bis); border-left: 3px solid var(--bulma-${normalizedColor}); border-radius: 6px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
                 <div class="is-flex is-align-items-center" style="gap: 0.75rem; flex: 1; min-width: 0;">
                     <span style="display: block; width: 12px; height: 12px; background: var(--bulma-${normalizedColor}); border-radius: 50%; flex-shrink: 0;"></span>
-                    <span style="font-size: 0.9rem; font-weight: 500; color: var(--bulma-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ctx.name}</span>
+                    <span style="font-size: 0.9rem; font-weight: 500; color: var(--bulma-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${safeName}</span>
                 </div>
                 <div class="is-flex is-align-items-center" style="gap: 0.35rem;">
                     <button class="button is-small context-action-btn context-edit-btn"
-                            onclick="window.showEditContextModal('${ctx.id}')"
+                            data-context-id="${safeId}"
                             title="Edit context"
                             style="padding: 0.35rem; border: none; background: transparent; border-radius: 50%; width: 32px; height: 32px;">
                         <span class="icon is-small">
@@ -1081,7 +1102,7 @@ export class UIManager {
                         </span>
                     </button>
                     <button class="button is-small context-action-btn context-delete-btn"
-                            onclick="window.showDeleteContextModal('${ctx.id}', '${ctx.name.replace(/'/g, "\\'")}')"
+                            data-context-id="${safeId}" data-context-name="${safeName}"
                             title="Delete context"
                             style="padding: 0.35rem; border: none; background: transparent; border-radius: 50%; width: 32px; height: 32px;">
                         <span class="icon is-small">
@@ -1092,6 +1113,22 @@ export class UIManager {
             </div>
         `;
         }).join('');
+
+        // Attach event handlers via delegation (avoids inline JS injection)
+        container.querySelectorAll('.context-edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = (btn as HTMLElement).dataset.contextId;
+                if (id) (window as any).showEditContextModal(id);
+            });
+        });
+        container.querySelectorAll('.context-delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const el = btn as HTMLElement;
+                if (el.dataset.contextId && el.dataset.contextName) {
+                    (window as any).showDeleteContextModal(el.dataset.contextId, el.dataset.contextName);
+                }
+            });
+        });
     }
 
 

@@ -7,6 +7,7 @@ import (
 	"daily-notes/session"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/api/idtoken"
@@ -30,7 +31,14 @@ func AuthRequired(sessionStore *session.Store, tokenRefresher TokenRefresher) fi
 					_, refreshErr := tokenRefresher.RefreshTokenIfNeeded(sess)
 					if refreshErr != nil {
 						log.Printf("[AUTH] Token refresh failed: %v", refreshErr)
-						// Continue anyway - the session might still be valid for some operations
+						// If refresh failed and token is already expired, reject the request
+						if sess.TokenExpiry.Before(time.Now()) && sess.RefreshToken != "" {
+							c.ClearCookie("session_id")
+							return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+								"error": "Session expired, please sign in again",
+							})
+						}
+						// If no refresh token (One Tap login), allow session-based access
 					}
 				}
 

@@ -83,11 +83,16 @@ func (cs *ContextService) Update(contextID, name, color string, userID string, t
 		return ErrContextNotFound
 	}
 
+	// Verify ownership
+	if oldContext.UserID != userID {
+		return ErrUnauthorized
+	}
+
 	// Check if name changed
 	nameChanged := oldContext.Name != name
 
-	// Update context in local database
-	if err := cs.repo.UpdateContext(contextID, name, color); err != nil {
+	// Update context in local database (scoped to user)
+	if err := cs.repo.UpdateContext(contextID, name, color, userID); err != nil {
 		return err
 	}
 
@@ -117,6 +122,11 @@ func (cs *ContextService) Delete(contextID, userID string, token *oauth2.Token) 
 		return ErrContextNotFound
 	}
 
+	// Verify ownership
+	if ctx.UserID != userID {
+		return ErrUnauthorized
+	}
+
 	// Get all notes for this context and mark them as deleted
 	notes, err := cs.repo.GetNotesByContext(userID, ctx.Name, 1000, 0)
 	if err != nil {
@@ -129,8 +139,8 @@ func (cs *ContextService) Delete(contextID, userID string, token *oauth2.Token) 
 		cs.repo.DeleteNote(userID, ctx.Name, note.Date)
 	}
 
-	// Delete from local database
-	if err := cs.repo.DeleteContext(contextID); err != nil {
+	// Delete from local database (scoped to user)
+	if err := cs.repo.DeleteContext(contextID, userID); err != nil {
 		return err
 	}
 

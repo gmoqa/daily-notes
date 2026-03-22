@@ -90,6 +90,9 @@ func UpdateContext(a *app.App) fiber.Handler {
 			if err == services.ErrContextNotFound {
 				return badRequest(c, "Context not found")
 			}
+			if err == services.ErrUnauthorized {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Access denied"})
+			}
 			return serverErrorWithDetails(c, "Failed to update context", err)
 		}
 
@@ -111,6 +114,9 @@ func DeleteContext(a *app.App) fiber.Handler {
 		if err := a.ContextService.Delete(contextID, userID, token); err != nil {
 			if err == services.ErrContextNotFound {
 				return badRequest(c, "Context not found")
+			}
+			if err == services.ErrUnauthorized {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Access denied"})
 			}
 			return serverErrorWithDetails(c, "Failed to delete context", err)
 		}

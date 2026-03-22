@@ -83,16 +83,23 @@ func (r *Repository) CreateContext(ctx *models.Context) error {
 	return err
 }
 
-// UpdateContext updates a context's name and color
-func (r *Repository) UpdateContext(contextID string, name string, color string) error {
-	_, err := r.db.Exec(`
+// UpdateContext updates a context's name and color (scoped to user)
+func (r *Repository) UpdateContext(contextID string, name string, color string, userID string) error {
+	result, err := r.db.Exec(`
 		UPDATE contexts SET
 			name = ?,
 			color = ?,
 			updated_at = ?
-		WHERE id = ?
-	`, name, color, time.Now(), contextID)
-	return err
+		WHERE id = ? AND user_id = ?
+	`, name, color, time.Now(), contextID, userID)
+	if err != nil {
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 // UpdateNotesContextName updates the context field for all notes when a context is renamed
@@ -106,8 +113,15 @@ func (r *Repository) UpdateNotesContextName(oldName string, newName string, user
 	return err
 }
 
-// DeleteContext deletes a context by ID
-func (r *Repository) DeleteContext(contextID string) error {
-	_, err := r.db.Exec("DELETE FROM contexts WHERE id = ?", contextID)
-	return err
+// DeleteContext deletes a context by ID (scoped to user)
+func (r *Repository) DeleteContext(contextID string, userID string) error {
+	result, err := r.db.Exec("DELETE FROM contexts WHERE id = ? AND user_id = ?", contextID, userID)
+	if err != nil {
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }

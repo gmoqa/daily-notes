@@ -33,9 +33,9 @@ type ContextRepository interface {
 	GetContextByName(userID, name string) (*models.Context, error)
 	GetContextByID(contextID string) (*models.Context, error)
 	CreateContext(ctx *models.Context) error
-	UpdateContext(contextID, name, color string) error
+	UpdateContext(contextID, name, color, userID string) error
 	UpdateNotesContextName(oldName, newName, userID string) error
-	DeleteContext(contextID string) error
+	DeleteContext(contextID, userID string) error
 	GetNotesByContext(userID, contextName string, limit, offset int) ([]models.Note, error)
 	DeleteNote(userID, contextName, date string) error
 }
