@@ -11,6 +11,7 @@ import (
 // GetNote retrieves a single note by user, context, and date
 func (r *Repository) GetNote(userID, context, date string) (*models.Note, error) {
 	var note models.Note
+	var driveFileID sql.NullString
 	var syncStatus string
 	var syncLastAttemptAt sql.NullTime
 	var syncError sql.NullString
@@ -23,7 +24,7 @@ func (r *Repository) GetNote(userID, context, date string) (*models.Note, error)
 		WHERE user_id = ? AND context = ? AND date = ? AND deleted = 0
 	`, userID, context, date).Scan(
 		&note.ID, &note.UserID, &note.Context, &note.Date,
-		&note.Content, &note.ID,
+		&note.Content, &driveFileID,
 		&syncStatus, &note.SyncRetryCount, &syncLastAttemptAt, &syncError,
 		&note.CreatedAt, &note.UpdatedAt,
 	)

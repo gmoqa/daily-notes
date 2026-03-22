@@ -119,7 +119,9 @@ func Me(a *app.App) fiber.Handler {
 
 		// Update last used timestamp
 		sess.LastUsedAt = time.Now()
-		a.SessionStore.Update(sessionID, sess)
+		if err := a.SessionStore.Update(sessionID, sess); err != nil {
+			a.Logger.Warn("failed to update session last_used_at", "session_id", sessionID, "error", err)
+		}
 
 		return c.JSON(fiber.Map{
 			"authenticated": true,
@@ -176,7 +178,9 @@ func UpdateSettings(a *app.App) fiber.Handler {
 
 		// Update session with new settings
 		sess.Settings = settings
-		a.SessionStore.Update(sessionID, sess)
+		if err := a.SessionStore.Update(sessionID, sess); err != nil {
+			a.Logger.Warn("failed to update session settings", "session_id", sessionID, "error", err)
+		}
 
 		return c.JSON(fiber.Map{
 			"success": true,

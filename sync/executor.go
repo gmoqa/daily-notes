@@ -141,12 +141,14 @@ func (w *Worker) syncNotesWithDrive(userID string, notes []database.NoteWithMeta
 		}
 	}
 
-	// If token expired, mark all remaining unprocessed notes as failed
+	// If token expired, mark only UNPROCESSED notes as failed (skip already synced/failed ones)
 	if result.tokenExpired {
-		log.Printf("[%s] Marking remaining notes as failed due to expired token", logPrefix)
+		log.Printf("[%s] Marking remaining unprocessed notes as failed due to expired token", logPrefix)
 		errorMsg := "Authentication token expired, please sign in again"
-		for _, note := range notes {
-			w.repo.MarkNoteSyncFailed(note.ID, errorMsg)
+		processed := result.syncedCount + result.failedCount
+		allOps := append(deleteOps, regularOps...)
+		for i := processed; i < len(allOps); i++ {
+			w.repo.MarkNoteSyncFailed(allOps[i].ID, errorMsg)
 		}
 		return result
 	}
@@ -186,6 +188,10 @@ func (w *Worker) SyncNoteImmediate(userID, noteContext, date string) {
 		note, err := w.repo.GetNote(userID, noteContext, date)
 		if err != nil {
 			log.Printf("[Immediate Sync] Failed to get note %s/%s: %v", noteContext, date, err)
+			return
+		}
+		if note == nil {
+			log.Printf("[Immediate Sync] Note %s/%s not found (may have been deleted)", noteContext, date)
 			return
 		}
 

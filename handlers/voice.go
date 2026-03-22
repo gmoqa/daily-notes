@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -56,49 +57,44 @@ type TranscribeAudioResponse struct {
 }
 
 var (
+	transcriberOnce         sync.Once
 	localTranscriberInstance *transcriber.LocalTranscriber
 	transcriberError         error
 )
 
-// initLocalTranscriber inicializa el transcriber local una sola vez
+// initLocalTranscriber inicializa el transcriber local una sola vez (thread-safe)
 func initLocalTranscriber() (*transcriber.LocalTranscriber, error) {
-	if localTranscriberInstance != nil {
-		return localTranscriberInstance, nil
-	}
+	transcriberOnce.Do(func() {
+		// Use environment variable for Docker compatibility
+		whisperURL := os.Getenv("WHISPER_SERVER_URL")
+		if whisperURL == "" {
+			whisperURL = "http://127.0.0.1:8080" // Default for local development
+		}
 
-	if transcriberError != nil {
-		return nil, transcriberError
-	}
+		transcConfig := transcriber.LocalConfig{
+			ServerURL: whisperURL,
+			Timeout:   120 * time.Second,
+		}
 
-	// Crear transcriber local
-	// Use environment variable for Docker compatibility
-	whisperURL := os.Getenv("WHISPER_SERVER_URL")
-	if whisperURL == "" {
-		whisperURL = "http://127.0.0.1:8080" // Default for local development
-	}
+		trans, err := transcriber.NewLocal(transcConfig)
+		if err != nil {
+			transcriberError = err
+			return
+		}
 
-	transcConfig := transcriber.LocalConfig{
-		ServerURL: whisperURL,
-		Timeout:   120 * time.Second,
-	}
+		// Verificar que el servidor esté disponible
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	trans, err := transcriber.NewLocal(transcConfig)
-	if err != nil {
-		transcriberError = err
-		return nil, err
-	}
+		if err := trans.Health(ctx); err != nil {
+			transcriberError = fmt.Errorf("whisper server not available: %w", err)
+			return
+		}
 
-	// Verificar que el servidor esté disponible
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+		localTranscriberInstance = trans
+	})
 
-	if err := trans.Health(ctx); err != nil {
-		transcriberError = fmt.Errorf("whisper server not available: %w", err)
-		return nil, transcriberError
-	}
-
-	localTranscriberInstance = trans
-	return localTranscriberInstance, nil
+	return localTranscriberInstance, transcriberError
 }
 
 // TranscribeAudio procesa audio y retorna transcripción
@@ -150,14 +146,9 @@ func TranscribeAudio(c *fiber.Ctx) error {
 		})
 	}
 
-	defer func() {
-		// Limpiar archivo temporal después de un delay
-		go func() {
-			time.Sleep(5 * time.Minute)
-			os.Remove(tmpPath)
-			os.Remove(tmpPath + ".wav")
-		}()
-	}()
+	// Clean up temp files immediately after function returns
+	defer os.Remove(tmpPath)
+	defer os.Remove(tmpPath + ".wav")
 
 	logger.Info("Audio file saved temporarily", "path", tmpPath)
 

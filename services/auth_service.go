@@ -5,6 +5,7 @@ import (
 	"daily-notes/config"
 	"daily-notes/models"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -367,15 +368,15 @@ func (as *AuthService) RefreshTokenIfNeeded(session *models.Session) (interface{
 		return nil, ErrTokenRefreshFailed
 	}
 
-	// Update session with new tokens
+	// Update session with new tokens - critical for persistence across restarts
 	if err := as.sessionStore.UpdateUserToken(
 		session.UserID,
 		newToken.AccessToken,
 		newToken.RefreshToken,
 		newToken.Expiry,
 	); err != nil {
-		// Log error but return the new token anyway
-		// The token is still usable even if we couldn't save it
+		// Return error so callers know the token wasn't persisted
+		return newToken, fmt.Errorf("token refreshed but failed to persist: %w", err)
 	}
 
 	// Update the session object

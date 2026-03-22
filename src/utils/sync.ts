@@ -156,7 +156,10 @@ export class SyncQueue {
         if (error.message.includes('Session expired')) {
           console.log('[Sync] Session expired, keeping operations in queue for later')
           // Don't remove from queue, will retry after re-login
-          break
+          // IMPORTANT: must set processing=false before breaking so queue can restart
+          this.processing = false
+          this.updateUI()
+          return
         }
 
         // Track retry count
